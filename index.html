@@ -1360,28 +1360,21 @@ async function syncNow(manual) {
 }
 function updateStatusLineSoon() { setTimeout(updateStatusLine, 1600); }
 document.getElementById('syncBtn').addEventListener('click', () => syncNow(true));
-/* 下部バーを「見えている画面」の下端に固定する。
-   通常時（ズームもパンも無し）は素の position:fixed に任せるのが確実なので何もしない。
-   ズーム/パンがある時だけ visualViewport に追従させ、計算結果が画面外なら素の表示に戻す。
-   ※ innerHeight と visualViewport.height が食い違う環境（アプリ内ブラウザ等）があるため、
-     通常時まで計算で動かすとバーが画面外へ押し出されてしまう */
+/* 下部バーを「見えている画面（表示領域）」の下端に吸着させる。
+   以前ヘッダーで実績のある方式: バーの左端を表示領域の左端に、右端を右端に、
+   下端を下端に合わせ、ズーム分は打ち消す。innerHeight等の食い違いやすい値は使わない。
+   左端の+ボタンは表示領域の左辺に、右側のボタン群は右辺に吸着する */
 const barEl = document.getElementById('bottombar');
 function pinBar() {
   const vv = window.visualViewport;
   if (!vv) return;
   const s = vv.scale || 1;
-  barEl.style.transform = '';
-  barEl.style.width = '';
-  if (s === 1 && vv.offsetLeft === 0 && vv.offsetTop === 0) return;
+  barEl.style.top = '0px';
+  barEl.style.bottom = 'auto';
   barEl.style.width = (vv.width * s) + 'px';
   const barH = barEl.offsetHeight;
-  const ty = vv.offsetTop + vv.height - barH / s - (window.innerHeight - barH);
+  const ty = vv.offsetTop + vv.height - barH / s;
   barEl.style.transform = 'translate(' + vv.offsetLeft + 'px,' + ty + 'px) scale(' + (1 / s) + ')';
-  const r = barEl.getBoundingClientRect();
-  if (r.bottom < 0 || r.top > vv.height || r.right < 0 || r.left > vv.width) {
-    barEl.style.transform = '';
-    barEl.style.width = '';
-  }
 }
 if (window.visualViewport) {
   visualViewport.addEventListener('resize', pinBar);
