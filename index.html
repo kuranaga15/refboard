@@ -113,6 +113,7 @@
     display: inline-flex; align-items: center; justify-content: center;
   }
   .tbtn.del { color: #ff8f8f; }
+  .tbtn svg { width: 19px; height: 19px; display: block; pointer-events: none; }
   #hint {
     position: absolute; left: 50%; top: 46%; transform: translate(-50%,-50%);
     color: #9a9aa5; font-size: 14px; text-align: center; line-height: 1.9; pointer-events: none; display: none;
@@ -161,7 +162,7 @@
   <div id="frameUi">
     <div id="selToolbar">
       <div class="tbtn act-dup" title="複製">⧉</div>
-      <div class="tbtn act-crop" title="トリミング">✂</div>
+      <div class="tbtn act-crop" title="トリミング"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg></div>
       <div class="tbtn del act-del" title="削除">✕</div>
     </div>
     <div id="resizeHandle"></div>
@@ -1370,6 +1371,13 @@ document.getElementById('menuBtn').addEventListener('click', (e) => {
   menuEl.classList.toggle('open');
 });
 document.addEventListener('click', (e) => {
+  if (menuEl.classList.contains('open') && !e.target.closest('#menu') && !e.target.closest('#menuBtn')) {
+    menuEl.classList.remove('open');
+  }
+});
+/* キャンバス上のタップは拡大鏡対策でtouchstartを抑止していてclickが飛ばないため、
+   pointerdownでも閉じられるようにしておく（外をタップしたら消えるように） */
+document.addEventListener('pointerdown', (e) => {
   if (menuEl.classList.contains('open') && !e.target.closest('#menu') && !e.target.closest('#menuBtn')) {
     menuEl.classList.remove('open');
   }
