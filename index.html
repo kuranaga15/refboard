@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>refboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+    background: #2b2b30; color: #eee;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #header {
+    position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 100;
+    display: flex; align-items: center; gap: 8px; padding: 0 10px;
+    background: rgba(30,30,34,.92); border-bottom: 1px solid rgba(255,255,255,.08);
+    padding-top: env(safe-area-inset-top); height: calc(52px + env(safe-area-inset-top));
+  }
+  #header .title { font-size: 15px; font-weight: 600; letter-spacing: .04em; margin-right: 2px; }
+  #status { font-size: 11px; color: #aab; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hbtn {
+    min-width: 40px; height: 36px; padding: 0 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.07); color: #eee; font-size: 13px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: none;
+  }
+  .hbtn:active { background: rgba(255,255,255,.16); }
+  #importBtn { background: #4a6cf7; border-color: #4a6cf7; font-size: 18px; font-weight: 700; width: 44px; }
+  #viewport {
+    position: fixed; left: 0; right: 0; bottom: 0; top: calc(52px + env(safe-area-inset-top));
+    overflow: hidden; touch-action: none; cursor: grab;
+  }
+  #world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+  .frame {
+    position: absolute; cursor: grab; touch-action: none;
+    background: #3a3a40; border-radius: 4px;
+    box-shadow: 0 4px 18px rgba(0,0,0,.45);
+  }
+  .frame img { width: 100%; height: 100%; display: block; border-radius: 4px; pointer-events: none; object-fit: fill; }
+  .frame.selected { outline: 2px solid #6f8dff; outline-offset: 1px; }
+  .frame .badge {
+    position: absolute; left: 6px; top: 6px; padding: 2px 7px; border-radius: 8px;
+    background: rgba(230,160,40,.92); color: #201600; font-size: 11px; font-weight: 600; display: none;
+  }
+  .frame.pending .badge { display: block; }
+  .frame .handle {
+    position: absolute; right: -11px; bottom: -11px; width: 24px; height: 24px; border-radius: 50%;
+    background: #6f8dff; border: 2px solid #fff; display: none; cursor: nwse-resize; touch-action: none; z-index: 5;
+  }
+  .frame.selected .handle { display: block; }
+  .frame .toolbar {
+    position: absolute; left: 50%; bottom: -42px; transform: translateX(-50%);
+    display: none; gap: 6px; z-index: 6;
+  }
+  .frame.selected .toolbar { display: flex; }
+  .tbtn {
+    width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25);
+    background: rgba(25,25,30,.92); color: #eee; font-size: 15px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .tbtn.del { color: #ff8f8f; }
+  #hint {
+    position: absolute; left: 50%; top: 46%; transform: translate(-50%,-50%);
+    color: #9a9aa5; font-size: 14px; text-align: center; line-height: 1.9; pointer-events: none; display: none;
+  }
+  #toast {
+    position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px);
+    background: rgba(20,20,24,.94); border: 1px solid rgba(255,255,255,.16); color: #eee;
+    padding: 9px 16px; border-radius: 20px; font-size: 13px; opacity: 0; pointer-events: none;
+    transition: opacity .25s, transform .25s; z-index: 300; max-width: 86vw; text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #detail {
+    position: fixed; inset: 0; z-index: 200; background: rgba(12,12,14,.96);
+    display: none; flex-direction: column; padding: calc(10px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));
+  }
+  #detail.open { display: flex; }
+  #detailImgWrap { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+  #detailImg { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+  #detailForm { padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  #detailForm label { font-size: 11px; color: #99a; }
+  #detailMemo, #detailSource {
+    width: 100%; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15);
+    border-radius: 8px; color: #eee; padding: 8px 10px; font-size: 14px; font-family: inherit;
+    -webkit-user-select: text; user-select: text;
+  }
+  #detailMemo { min-height: 56px; resize: vertical; }
+  .drow { display: flex; gap: 8px; }
+  .dbtn { flex: 1; height: 42px; border-radius: 9px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.08); color: #eee; font-size: 14px; cursor: pointer; }
+  .dbtn.primary { background: #4a6cf7; border-color: #4a6cf7; }
+  .dbtn.danger { color: #ff9a9a; }
+</style>
+</head>
+<body>
+<div id="header">
+  <div class="title">refboard</div>
+  <div id="status">読み込み中…</div>
+  <button class="hbtn" id="fitBtn" title="全体を表示">全体</button>
+  <button class="hbtn" id="syncBtn" title="GitHubと同期">同期</button>
+  <button class="hbtn" id="keyBtn" title="GitHubトークンの設定">GH鍵</button>
+  <button class="hbtn" id="importBtn" title="画像をインポート">＋</button>
+</div>
+<div id="viewport">
+  <div id="world"></div>
+  <div id="hint">右上の ＋ から画像を取り込んでね<br>ドラッグで移動、ピンチで拡大縮小だよ</div>
+</div>
+<div id="detail">
+  <div id="detailImgWrap"><img id="detailImg" alt=""></div>
+  <div id="detailForm">
+    <div>
+      <label>メモ</label>
+      <textarea id="detailMemo" placeholder="メモ"></textarea>
+    </div>
+    <div>
+      <label>出典URL</label>
+      <input id="detailSource" type="url" placeholder="https://">
+    </div>
+    <div class="drow">
+      <button class="dbtn danger" id="detailDelete">削除</button>
+      <button class="dbtn" id="detailClose">閉じる</button>
+      <button class="dbtn primary" id="detailSave">保存</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+<script>
+'use strict';
+/* ============================================================
+   refboard Phase 1
+   - アプリ: kuranaga15/refboard (公開, GitHub Pages)
+   - データ: kuranaga15/refboard-data (非公開) images/ thumbs/ data/index.json data/boards.json
+   - ローカルが作業の正。GitHubへは Git Data API で差分同期する
+   ============================================================ */
+const GH_OWNER = 'kuranaga15';
+const DATA_REPO = 'refboard-data';
+const GH_BRANCH = 'main';
+const TOKEN_KEY = 'refboard-gh-token';
+const BOARD_ID = 'b1';
+const MAIN_MAX = 1600, THUMB_MAX = 320;
+const LAYOUT_ROW_H = 280, LAYOUT_GAP = 16;
+
+/* ---------- 状態 ---------- */
+let items = new Map();        // id -> item {id,file,thumb,w,h,hash,memo,sourceUrl,createdAt}
+let placements = [];          // {pid,itemId,x,y,w,h,angle,z,u}  x,y は中心座標
+let deletedItemIds = new Set();
+let deletedPlacementIds = new Set();
+let pendingUploadIds = new Set();  // 画像実体がまだGitHubに無い item id
+let metaDirty = false;
+let camera = { cx: 0, cy: 0, scale: 1 };
+let zCounter = 20;
+let selectedPid = null;
+
+/* ---------- DOM ---------- */
+const viewport = document.getElementById('viewport');
+const world = document.getElementById('world');
+const statusEl = document.getElementById('status');
+const hintEl = document.getElementById('hint');
+const toastEl = document.getElementById('toast');
+const fileInput = document.getElementById('fileInput');
+
+let toastTimer = null;
+function toast(msg, ms) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms || 2600);
+}
+function setStatus(msg) { statusEl.textContent = msg; }
+
+/* ---------- IndexedDB ---------- */
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('refboard-db', 1);
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      db.createObjectStore('kv');
+      db.createObjectStore('blobs');
+    };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbGet(store, key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const q = db.transaction(store, 'readonly').objectStore(store).get(key);
+    q.onsuccess = () => res(q.result);
+    q.onerror = () => rej(q.error);
+  });
+}
+async function idbSet(store, key, val) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const q = db.transaction(store, 'readwrite').objectStore(store).put(val, key);
+    q.onsuccess = () => res();
+    q.onerror = () => rej(q.error);
+  });
+}
+async function idbDel(store, key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const q = db.transaction(store, 'readwrite').objectStore(store).delete(key);
+    q.onsuccess = () => res();
+    q.onerror = () => rej(q.error);
+  });
+}
+
+/* ---------- ローカル保存 / 読込 ---------- */
+async function saveLocal() {
+  const data = {
+    items: [...items.values()],
+    placements,
+    deletedItemIds: [...deletedItemIds],
+    deletedPlacementIds: [...deletedPlacementIds],
+    pendingUploadIds: [...pendingUploadIds],
+    metaDirty, camera, zCounter
+  };
+  try { await idbSet('kv', 'state', data); } catch (e) {}
+}
+async function loadLocal() {
+  try {
+    const d = await idbGet('kv', 'state');
+    if (!d) return;
+    items = new Map((d.items || []).map(it => [it.id, it]));
+    placements = d.placements || [];
+    deletedItemIds = new Set(d.deletedItemIds || []);
+    deletedPlacementIds = new Set(d.deletedPlacementIds || []);
+    pendingUploadIds = new Set(d.pendingUploadIds || []);
+    metaDirty = !!d.metaDirty;
+    if (d.camera) camera = d.camera;
+    zCounter = d.zCounter || 20;
+  } catch (e) {}
+}
+
+/* ---------- トークン ---------- */
+function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } }
+function askToken() {
+  const t = prompt('GitHubのトークンを貼り付けてください。\n（対象: refboard-data / Contents: Read and write。この端末のブラウザにだけ保存されます。空欄でOKすると削除します）', '');
+  if (t === null) return null;
+  const v = t.trim();
+  try { if (v) localStorage.setItem(TOKEN_KEY, v); else localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+  return v;
+}
+
+/* ---------- GitHub API ---------- */
+async function ghApi(path, options, accept) {
+  const token = getToken();
+  if (!token) throw new Error('トークンが未設定です');
+  const res = await fetch('https://api.github.com' + path, Object.assign({}, options || {}, {
+    cache: 'no-store',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Accept': accept || 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    }
+  }));
+  return res;
+}
+async function ghApiJson(path, options) {
+  const res = await ghApi(path, options);
+  if (!res.ok) {
+    let msg = '';
+    try { msg = (await res.json()).message || ''; } catch (e) {}
+    throw new Error('GitHub APIエラー ' + res.status + (msg ? '：' + msg : ''));
+  }
+  return res.json();
+}
+/* 非公開リポジトリからファイルを raw で取る。404 は null */
+async function ghFetchRaw(path) {
+  const res = await ghApi('/repos/' + GH_OWNER + '/' + DATA_REPO + '/contents/' + path, null, 'application/vnd.github.raw+json');
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error('GitHub読み込みエラー ' + res.status + ' (' + path + ')');
+  return res;
+}
+async function ghFetchJson(path) {
+  const res = await ghFetchRaw(path);
+  if (!res) return null;
+  try { return await res.json(); } catch (e) { return null; }
+}
+async function ghFetchBlob(path) {
+  const res = await ghFetchRaw(path);
+  if (!res) return null;
+  return res.blob();
+}
+function blobToBase64(blob) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(',')[1] || '');
+    r.onerror = () => rej(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+function utf8ToBase64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)));
+  return btoa(bin);
+}
+
+/* ---------- 画像URL（ローカルblob → 無ければGitHubから取得してキャッシュ） ---------- */
+const urlCache = new Map(); // itemId:kind -> objectURL
+async function imageURL(item, kind) {
+  const key = item.id + ':' + kind;
+  if (urlCache.has(key)) return urlCache.get(key);
+  let blob = null;
+  try { blob = await idbGet('blobs', key); } catch (e) {}
+  if (!blob && getToken()) {
+    try {
+      blob = await ghFetchBlob(kind === 'thumb' ? item.thumb : item.file);
+      if (blob) { try { await idbSet('blobs', key, blob); } catch (e) {} }
+    } catch (e) {}
+  }
+  if (!blob) return '';
+  const url = URL.createObjectURL(blob);
+  urlCache.set(key, url);
+  return url;
+}
+
+/* ---------- カメラ / 座標 ---------- */
+function applyCamera() {
+  const r = viewport.getBoundingClientRect();
+  world.style.transform = 'translate(' + (r.width / 2) + 'px,' + (r.height / 2) + 'px) scale(' + camera.scale + ') translate(' + (-camera.cx) + 'px,' + (-camera.cy) + 'px)';
+  const grid = 64 * camera.scale;
+  viewport.style.backgroundImage =
+    'linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px)';
+  viewport.style.backgroundSize = grid + 'px ' + grid + 'px';
+  const ox = (r.width / 2 - camera.cx * camera.scale) % grid;
+  const oy = (r.height / 2 - camera.cy * camera.scale) % grid;
+  viewport.style.backgroundPosition = ox + 'px ' + oy + 'px';
+}
+function screenToWorld(clientX, clientY) {
+  const r = viewport.getBoundingClientRect();
+  return {
+    x: (clientX - r.left - r.width / 2) / camera.scale + camera.cx,
+    y: (clientY - r.top - r.height / 2) / camera.scale + camera.cy
+  };
+}
+function viewWorldSize() {
+  const r = viewport.getBoundingClientRect();
+  return { w: r.width / camera.scale, h: r.height / camera.scale };
+}
+
+/* ---------- フレーム描画 ---------- */
+const frameEls = new Map(); // pid -> element
+function placementByPid(pid) { return placements.find(p => p.pid === pid); }
+function itemOf(p) { return items.get(p.itemId); }
+
+function desiredKind(p) {
+  return (p.w * camera.scale < 480) ? 'thumb' : 'file';
+}
+async function refreshFrameImage(p, el) {
+  const item = itemOf(p);
+  if (!item) return;
+  const kind = desiredKind(p);
+  if (el.dataset.kind === kind && el.dataset.loaded === '1') return;
+  const url = await imageURL(item, kind);
+  if (!url) return;
+  const img = el.querySelector('img');
+  img.src = url;
+  el.dataset.kind = kind;
+  el.dataset.loaded = '1';
+}
+function renderAll() {
+  const alive = new Set();
+  for (const p of placements) {
+    alive.add(p.pid);
+    let el = frameEls.get(p.pid);
+    if (!el) { el = buildFrameEl(p); frameEls.set(p.pid, el); world.appendChild(el); }
+    positionFrameEl(p, el);
+    refreshFrameImage(p, el);
+  }
+  for (const [pid, el] of [...frameEls]) {
+    if (!alive.has(pid)) { el.remove(); frameEls.delete(pid); }
+  }
+  hintEl.style.display = placements.length ? 'none' : 'block';
+  updateStatusLine();
+}
+function positionFrameEl(p, el) {
+  el.style.left = (p.x - p.w / 2) + 'px';
+  el.style.top = (p.y - p.h / 2) + 'px';
+  el.style.width = p.w + 'px';
+  el.style.height = p.h + 'px';
+  el.style.zIndex = p.z || 20;
+  el.style.transform = 'rotate(' + (p.angle || 0) + 'deg)';
+  el.classList.toggle('selected', p.pid === selectedPid);
+  const item = itemOf(p);
+  el.classList.toggle('pending', !!(item && pendingUploadIds.has(item.id)));
+}
+function buildFrameEl(p) {
+  const el = document.createElement('div');
+  el.className = 'frame';
+  el.dataset.pid = p.pid;
+  el.innerHTML = '<img draggable="false" alt=""><div class="badge">送信待ち</div>' +
+    '<div class="toolbar">' +
+    '<div class="tbtn act-dup" title="複製">⧉</div>' +
+    '<div class="tbtn act-open" title="詳細">…</div>' +
+    '<div class="tbtn del act-del" title="削除">✕</div>' +
+    '</div><div class="handle"></div>';
+  el.addEventListener('pointerdown', onFramePointerDown);
+  el.querySelector('.handle').addEventListener('pointerdown', onHandlePointerDown);
+  el.querySelector('.act-del').addEventListener('click', (e) => { e.stopPropagation(); deletePlacementFlow(p.pid); });
+  el.querySelector('.act-dup').addEventListener('click', (e) => { e.stopPropagation(); duplicatePlacement(p.pid); });
+  el.querySelector('.act-open').addEventListener('click', (e) => { e.stopPropagation(); openDetail(p.itemId); });
+  el.addEventListener('dblclick', (e) => { e.stopPropagation(); openDetail(p.itemId); });
+  return el;
+}
+function selectPlacement(pid) {
+  selectedPid = pid;
+  for (const p of placements) {
+    const el = frameEls.get(p.pid);
+    if (el) positionFrameEl(p, el);
+  }
+}
+
+/* ---------- フレーム移動 / リサイズ ---------- */
+let dragState = null;
+function onFramePointerDown(e) {
+  if (e.target.closest('.tbtn') || e.target.closest('.handle')) return;
+  const el = e.currentTarget;
+  const p = placementByPid(el.dataset.pid);
+  if (!p) return;
+  selectPlacement(p.pid);
+  p.z = ++zCounter;
+  const start = screenToWorld(e.clientX, e.clientY);
+  dragState = { mode: 'move', pid: p.pid, startX: start.x, startY: start.y, origX: p.x, origY: p.y, moved: false, pointerId: e.pointerId };
+  el.setPointerCapture(e.pointerId);
+  el.addEventListener('pointermove', onDragMove);
+  el.addEventListener('pointerup', onDragEnd, { once: true });
+  el.addEventListener('pointercancel', onDragEnd, { once: true });
+}
+function onHandlePointerDown(e) {
+  e.stopPropagation();
+  const el = e.target.closest('.frame');
+  const p = placementByPid(el.dataset.pid);
+  if (!p) return;
+  selectPlacement(p.pid);
+  dragState = { mode: 'resize', pid: p.pid, startClientX: e.clientX, origW: p.w, pointerId: e.pointerId };
+  e.target.setPointerCapture(e.pointerId);
+  e.target.addEventListener('pointermove', onDragMove);
+  e.target.addEventListener('pointerup', onDragEnd, { once: true });
+  e.target.addEventListener('pointercancel', onDragEnd, { once: true });
+}
+function onDragMove(e) {
+  if (!dragState || e.pointerId !== dragState.pointerId) return;
+  const p = placementByPid(dragState.pid);
+  if (!p) return;
+  const el = frameEls.get(p.pid);
+  if (dragState.mode === 'move') {
+    const now = screenToWorld(e.clientX, e.clientY);
+    p.x = dragState.origX + (now.x - dragState.startX);
+    p.y = dragState.origY + (now.y - dragState.startY);
+    dragState.moved = true;
+  } else {
+    const item = itemOf(p);
+    const ratio = item ? (item.h / item.w) : 1;
+    const dw = (e.clientX - dragState.startClientX) / camera.scale;
+    p.w = Math.max(40, dragState.origW + dw);
+    p.h = p.w * ratio;
+  }
+  if (el) positionFrameEl(p, el);
+}
+async function onDragEnd(e) {
+  if (!dragState) return;
+  const p = placementByPid(dragState.pid);
+  dragState = null;
+  if (p) {
+    p.u = Date.now();
+    metaDirty = true;
+    await saveLocal();
+    scheduleSync();
+    const el = frameEls.get(p.pid);
+    if (el) refreshFrameImage(p, el);
+  }
+}
+
+/* ---------- パン / ピンチ / ホイール ---------- */
+const pointers = new Map();
+let panState = null, pinchState = null;
+viewport.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('.frame')) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  viewport.setPointerCapture(e.pointerId);
+  if (pointers.size === 1) {
+    selectPlacement(null);
+    panState = { startX: e.clientX, startY: e.clientY, cx: camera.cx, cy: camera.cy };
+  } else if (pointers.size === 2) {
+    panState = null;
+    const pts = [...pointers.values()];
+    pinchState = {
+      dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+      scale: camera.scale,
+      midWorld: screenToWorld((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2)
+    };
+  }
+});
+viewport.addEventListener('pointermove', (e) => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinchState && pointers.size === 2) {
+    const pts = [...pointers.values()];
+    const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    const midX = (pts[0].x + pts[1].x) / 2, midY = (pts[0].y + pts[1].y) / 2;
+    camera.scale = clamp(pinchState.scale * (dist / pinchState.dist), 0.05, 5);
+    const r = viewport.getBoundingClientRect();
+    camera.cx = pinchState.midWorld.x - (midX - r.left - r.width / 2) / camera.scale;
+    camera.cy = pinchState.midWorld.y - (midY - r.top - r.height / 2) / camera.scale;
+    applyCamera();
+  } else if (panState && pointers.size === 1) {
+    camera.cx = panState.cx - (e.clientX - panState.startX) / camera.scale;
+    camera.cy = panState.cy - (e.clientY - panState.startY) / camera.scale;
+    applyCamera();
+  }
+});
+function endViewportPointer(e) {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinchState = null;
+  if (pointers.size === 0) {
+    panState = null;
+    saveLocal();
+    for (const p of placements) { const el = frameEls.get(p.pid); if (el) refreshFrameImage(p, el); }
+  }
+}
+viewport.addEventListener('pointerup', endViewportPointer);
+viewport.addEventListener('pointercancel', endViewportPointer);
+viewport.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const before = screenToWorld(e.clientX, e.clientY);
+  const factor = Math.exp(-e.deltaY * 0.0015);
+  camera.scale = clamp(camera.scale * factor, 0.05, 5);
+  const after = screenToWorld(e.clientX, e.clientY);
+  camera.cx += before.x - after.x;
+  camera.cy += before.y - after.y;
+  applyCamera();
+  clearTimeout(viewport._wz);
+  viewport._wz = setTimeout(() => { saveLocal(); for (const p of placements) { const el = frameEls.get(p.pid); if (el) refreshFrameImage(p, el); } }, 200);
+}, { passive: false });
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+</script>
+<script>
+'use strict';
+/* ================= 取り込み（圧縮・重複チェック・ブロック配置） ================= */
+async function sha256Hex(buf) {
+  const h = await crypto.subtle.digest('SHA-256', buf);
+  return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function loadImageFromBlob(blob) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => { res({ img, url }); };
+    img.onerror = (e) => { URL.revokeObjectURL(url); rej(e); };
+    img.src = url;
+  });
+}
+async function compressImage(file) {
+  const { img, url } = await loadImageFromBlob(file);
+  try {
+    const nw = img.naturalWidth, nh = img.naturalHeight;
+    if (!nw || !nh) throw new Error('画像サイズが取得できませんでした');
+    function render(maxDim, quality) {
+      const s = Math.min(1, maxDim / Math.max(nw, nh));
+      const w = Math.max(1, Math.round(nw * s)), h = Math.max(1, Math.round(nh * s));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      return new Promise((res2) => {
+        c.toBlob((b) => {
+          if (b && b.type === 'image/webp') return res2({ blob: b, ext: 'webp', w, h });
+          c.toBlob((b2) => res2({ blob: b2, ext: 'jpg', w, h }), 'image/jpeg', quality);
+        }, 'image/webp', quality);
+      });
+    }
+    const main = await render(MAIN_MAX, 0.82);
+    const thumb = await render(THUMB_MAX, 0.75);
+    if (!main.blob || !thumb.blob) throw new Error('画像の変換に失敗しました');
+    return { main, thumb, naturalW: nw, naturalH: nh };
+  } finally { URL.revokeObjectURL(url); }
+}
+function makeId() {
+  const d = new Date();
+  const p = (n, l) => String(n).padStart(l || 2, '0');
+  return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '-' + Math.random().toString(36).slice(2, 8);
+}
+function aabbOf(cx, cy, w, h) { return { l: cx - w / 2, t: cy - h / 2, r: cx + w / 2, b: cy + h / 2 }; }
+function intersects(a, b, pad) {
+  return a.l < b.r + pad && a.r > b.l - pad && a.t < b.b + pad && a.b > b.t - pad;
+}
+/* 複数枚を棚状に並べ、既存配置と重ならない位置を探す */
+function layoutBlock(sizes, anchor) {
+  const gap = LAYOUT_GAP;
+  const scaled = sizes.map(s => {
+    let h = LAYOUT_ROW_H;
+    let w = h * (s.w / s.h);
+    if (w > 900) { w = 900; h = w * (s.h / s.w); }
+    return { w, h };
+  });
+  const totalArea = scaled.reduce((a, s) => a + s.w * s.h, 0);
+  const view = viewWorldSize();
+  let maxRowW = clamp(Math.sqrt(totalArea) * 1.2, 420, Math.max(420, view.w * 0.95));
+  const rows = [];
+  let row = [], rowW = 0;
+  for (const s of scaled) {
+    const add = (row.length ? gap : 0) + s.w;
+    if (row.length && rowW + add > maxRowW) { rows.push(row); row = []; rowW = 0; }
+    row.push(s); rowW += (row.length > 1 ? gap : 0) + s.w;
+  }
+  if (row.length) rows.push(row);
+  const rowHeights = rows.map(r => Math.max(...r.map(s => s.h)));
+  const blockW = Math.max(...rows.map(r => r.reduce((a, s) => a + s.w, 0) + gap * (r.length - 1)));
+  const blockH = rowHeights.reduce((a, h) => a + h, 0) + gap * (rows.length - 1);
+  let top = anchor.y - blockH / 2;
+  const left = anchor.x - blockW / 2;
+  const existing = placements.map(p => aabbOf(p.x, p.y, p.w, p.h));
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const box = { l: left, t: top, r: left + blockW, b: top + blockH };
+    const hit = existing.find(b => intersects(box, b, gap));
+    if (!hit) break;
+    top = hit.b + gap;
+  }
+  const out = [];
+  let y = top;
+  rows.forEach((r, ri) => {
+    let x = left;
+    for (const s of r) {
+      out.push({ x: x + s.w / 2, y: y + s.h / 2, w: s.w, h: s.h });
+      x += s.w + gap;
+    }
+    y += rowHeights[ri] + gap;
+  });
+  return out;
+}
+let importing = false;
+async function importFiles(files, anchor) {
+  if (importing) { toast('取り込み中だよ…終わってからにしてね'); return; }
+  const list = [...files].filter(f => f.type && f.type.startsWith('image/'));
+  if (!list.length) return;
+  importing = true;
+  setStatus('取り込み中…');
+  try {
+    const prepared = [];
+    let dup = 0, failed = 0;
+    for (const f of list) {
+      try {
+        const buf = await f.arrayBuffer();
+        const hash = await sha256Hex(buf);
+        if ([...items.values()].some(it => it.hash === hash)) { dup++; continue; }
+        const { main, thumb, naturalW, naturalH } = await compressImage(f);
+        const id = makeId();
+        const ym = id.slice(0, 4) + '/' + id.slice(4, 6);
+        const item = {
+          id,
+          file: 'images/' + ym + '/' + id + '.' + main.ext,
+          thumb: 'thumbs/' + ym + '/' + id + '.' + thumb.ext,
+          w: main.w, h: main.h,
+          hash, memo: '', sourceUrl: '',
+          createdAt: new Date().toISOString()
+        };
+        await idbSet('blobs', id + ':file', main.blob);
+        await idbSet('blobs', id + ':thumb', thumb.blob);
+        items.set(id, item);
+        pendingUploadIds.add(id);
+        prepared.push({ item, naturalW, naturalH });
+      } catch (e) { failed++; }
+    }
+    if (prepared.length) {
+      const center = anchor || screenToWorld(viewport.clientWidth / 2 + viewport.getBoundingClientRect().left, viewport.clientHeight / 2 + viewport.getBoundingClientRect().top);
+      const positions = layoutBlock(prepared.map(p => ({ w: p.naturalW, h: p.naturalH })), center);
+      prepared.forEach((p, i) => {
+        placements.push({
+          pid: 'p-' + p.item.id, itemId: p.item.id,
+          x: positions[i].x, y: positions[i].y, w: positions[i].w, h: positions[i].h,
+          angle: 0, z: ++zCounter, u: Date.now()
+        });
+      });
+      metaDirty = true;
+      await saveLocal();
+      renderAll();
+    }
+    const msgs = [];
+    if (prepared.length) msgs.push(prepared.length + '枚取り込んだよ');
+    if (dup) msgs.push(dup + '枚は重複でスキップ');
+    if (failed) msgs.push(failed + '枚は失敗');
+    toast(msgs.join('、') || '取り込める画像がなかったよ');
+    if (prepared.length) scheduleSync();
+  } finally {
+    importing = false;
+    updateStatusLine();
+  }
+}
+document.getElementById('importBtn').addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
+fileInput.addEventListener('change', (e) => importFiles(e.target.files, null));
+viewport.addEventListener('dragover', (e) => { e.preventDefault(); });
+viewport.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const anchor = screenToWorld(e.clientX, e.clientY);
+  importFiles(e.dataTransfer.files, anchor);
+});
+document.addEventListener('paste', (e) => {
+  if (document.getElementById('detail').classList.contains('open')) return;
+  const files = [...(e.clipboardData ? e.clipboardData.files : [])];
+  if (files.length) importFiles(files, null);
+});
+
+/* ================= 配置の操作 ================= */
+function duplicatePlacement(pid) {
+  const p = placementByPid(pid);
+  if (!p) return;
+  const np = Object.assign({}, p, { pid: 'p-' + makeId(), x: p.x + 28, y: p.y + 28, z: ++zCounter, u: Date.now() });
+  placements.push(np);
+  metaDirty = true;
+  saveLocal(); renderAll(); scheduleSync();
+}
+async function deletePlacementFlow(pid) {
+  const p = placementByPid(pid);
+  if (!p) return;
+  const others = placements.filter(q => q.itemId === p.itemId && q.pid !== pid);
+  placements = placements.filter(q => q.pid !== pid);
+  deletedPlacementIds.add(pid);
+  if (!others.length) {
+    if (!confirm('この画像を削除しますか？\n（ボードからもデータからも消えます）')) {
+      deletedPlacementIds.delete(pid);
+      placements.push(p);
+      renderAll();
+      return;
+    }
+    deletedItemIds.add(p.itemId);
+    items.delete(p.itemId);
+    pendingUploadIds.delete(p.itemId);
+    try { await idbDel('blobs', p.itemId + ':file'); await idbDel('blobs', p.itemId + ':thumb'); } catch (e) {}
+    for (const k of [p.itemId + ':file', p.itemId + ':thumb']) {
+      if (urlCache.has(k)) { URL.revokeObjectURL(urlCache.get(k)); urlCache.delete(k); }
+    }
+  }
+  if (selectedPid === pid) selectedPid = null;
+  metaDirty = true;
+  await saveLocal();
+  renderAll();
+  scheduleSync();
+  toast('削除したよ');
+}
+
+/* ================= 詳細 ================= */
+const detailEl = document.getElementById('detail');
+const detailImg = document.getElementById('detailImg');
+const detailMemo = document.getElementById('detailMemo');
+const detailSource = document.getElementById('detailSource');
+let detailItemId = null;
+async function openDetail(itemId) {
+  const item = items.get(itemId);
+  if (!item) return;
+  detailItemId = itemId;
+  detailMemo.value = item.memo || '';
+  detailSource.value = item.sourceUrl || '';
+  detailImg.src = '';
+  detailEl.classList.add('open');
+  const url = await imageURL(item, 'file');
+  if (url && detailItemId === itemId) detailImg.src = url;
+}
+function closeDetail() { detailEl.classList.remove('open'); detailItemId = null; }
+document.getElementById('detailClose').addEventListener('click', closeDetail);
+document.getElementById('detailSave').addEventListener('click', async () => {
+  const item = items.get(detailItemId);
+  if (item) {
+    item.memo = detailMemo.value;
+    item.sourceUrl = detailSource.value.trim();
+    metaDirty = true;
+    await saveLocal();
+    scheduleSync();
+    toast('保存したよ');
+  }
+  closeDetail();
+});
+document.getElementById('detailDelete').addEventListener('click', async () => {
+  const targetId = detailItemId;
+  if (!targetId) { closeDetail(); return; }
+  if (!confirm('この画像を削除しますか？\n（ボードからもデータからも消えます）')) return;
+  closeDetail();
+  const all = placements.filter(p => p.itemId === targetId).map(p => p.pid);
+  for (const one of all) { placements = placements.filter(q => q.pid !== one); deletedPlacementIds.add(one); }
+  deletedItemIds.add(targetId);
+  items.delete(targetId);
+  pendingUploadIds.delete(targetId);
+  try { await idbDel('blobs', targetId + ':file'); await idbDel('blobs', targetId + ':thumb'); } catch (e) {}
+  metaDirty = true;
+  await saveLocal();
+  renderAll();
+  scheduleSync();
+  toast('削除したよ');
+});
+
+/* ================= 同期（pull-merge-push） ================= */
+let syncing = false, syncTimer = null;
+function scheduleSync() {
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => syncNow(false), 1200);
+}
+function updateStatusLine() {
+  if (syncing) return setStatus('同期中…');
+  if (!getToken()) return setStatus('GH鍵が未設定だよ（この端末の中だけに保存中）');
+  if (pendingUploadIds.size) return setStatus('送信待ち ' + pendingUploadIds.size + '件');
+  if (metaDirty) return setStatus('未同期の変更があるよ');
+  setStatus('同期済み');
+}
+function mergeData(remoteIndex, remoteBoards) {
+  const rItems = new Map(((remoteIndex && remoteIndex.items) || []).map(it => [it.id, it]));
+  const del = new Set([...(remoteIndex && remoteIndex.deletedIds || []), ...deletedItemIds]);
+  for (const id of del) { rItems.delete(id); items.delete(id); }
+  for (const [id, it] of rItems) if (!items.has(id)) items.set(id, it);
+  deletedItemIds = del;
+  const rBoards = (remoteBoards && remoteBoards.boards) || [];
+  const rBoard = rBoards.find(b => b.id === BOARD_ID);
+  const rPlacements = (rBoard && rBoard.placements) || [];
+  const pDel = new Set([...(remoteBoards && remoteBoards.deletedPlacementIds || []), ...deletedPlacementIds]);
+  const byPid = new Map();
+  for (const p of rPlacements) byPid.set(p.pid, p);
+  for (const p of placements) {
+    const r = byPid.get(p.pid);
+    if (!r || (p.u || 0) >= (r.u || 0)) byPid.set(p.pid, p);
+  }
+  for (const pid of pDel) byPid.delete(pid);
+  placements = [...byPid.values()].filter(p => items.has(p.itemId));
+  deletedPlacementIds = pDel;
+}
+async function syncNow(manual) {
+  if (syncing) return;
+  if (!getToken()) { if (manual) { askToken(); updateStatusLine(); } return; }
+  syncing = true;
+  setStatus('同期中…');
+  try {
+    const base = '/repos/' + GH_OWNER + '/' + DATA_REPO;
+    /* pull & merge */
+    const remoteIndex = await ghFetchJson('data/index.json');
+    const remoteBoards = await ghFetchJson('data/boards.json');
+    mergeData(remoteIndex, remoteBoards);
+    await saveLocal();
+    renderAll();
+    /* push が要るか判定 */
+    const needPush = pendingUploadIds.size > 0 || metaDirty;
+    if (!needPush) { setStatus('同期済み'); return; }
+    /* blobs */
+    const treeItems = [];
+    const uploaded = [];
+    for (const id of [...pendingUploadIds]) {
+      const item = items.get(id);
+      if (!item) continue;
+      const fb = await idbGet('blobs', id + ':file');
+      const tb = await idbGet('blobs', id + ':thumb');
+      if (!fb || !tb) continue;
+      const fBlob = await ghApiJson(base + '/git/blobs', { method: 'POST', body: JSON.stringify({ content: await blobToBase64(fb), encoding: 'base64' }) });
+      treeItems.push({ path: item.file, mode: '100644', type: 'blob', sha: fBlob.sha });
+      const tBlob = await ghApiJson(base + '/git/blobs', { method: 'POST', body: JSON.stringify({ content: await blobToBase64(tb), encoding: 'base64' }) });
+      treeItems.push({ path: item.thumb, mode: '100644', type: 'blob', sha: tBlob.sha });
+      uploaded.push(id);
+    }
+    const nowIso = new Date().toISOString();
+    const indexObj = { formatVersion: 1, updatedAt: nowIso, deletedIds: [...deletedItemIds], items: [...items.values()] };
+    const boardsObj = { formatVersion: 1, updatedAt: nowIso, deletedPlacementIds: [...deletedPlacementIds], boards: [{ id: BOARD_ID, name: 'ボード1', updatedAt: nowIso, placements }] };
+    const idxBlob = await ghApiJson(base + '/git/blobs', { method: 'POST', body: JSON.stringify({ content: utf8ToBase64(JSON.stringify(indexObj)), encoding: 'base64' }) });
+    treeItems.push({ path: 'data/index.json', mode: '100644', type: 'blob', sha: idxBlob.sha });
+    const brdBlob = await ghApiJson(base + '/git/blobs', { method: 'POST', body: JSON.stringify({ content: utf8ToBase64(JSON.stringify(boardsObj)), encoding: 'base64' }) });
+    treeItems.push({ path: 'data/boards.json', mode: '100644', type: 'blob', sha: brdBlob.sha });
+    /* commit（ref競合は最大4回リトライ。初回は ref 作成） */
+    let done = false, lastErr = null;
+    for (let attempt = 0; attempt < 4 && !done; attempt++) {
+      try {
+        let ref = null, baseCommit = null;
+        try { ref = await ghApiJson(base + '/git/ref/heads/' + GH_BRANCH); } catch (e) { if (!/404/.test(e.message)) throw e; }
+        if (ref) baseCommit = await ghApiJson(base + '/git/commits/' + ref.object.sha);
+        const treeBody = { tree: treeItems };
+        if (baseCommit) treeBody.base_tree = baseCommit.tree.sha;
+        const tree = await ghApiJson(base + '/git/trees', { method: 'POST', body: JSON.stringify(treeBody) });
+        const commitBody = { message: 'refboard sync', tree: tree.sha, parents: ref ? [ref.object.sha] : [] };
+        const commit = await ghApiJson(base + '/git/commits', { method: 'POST', body: JSON.stringify(commitBody) });
+        if (ref) {
+          await ghApiJson(base + '/git/refs/heads/' + GH_BRANCH, { method: 'PATCH', body: JSON.stringify({ sha: commit.sha }) });
+        } else {
+          await ghApiJson(base + '/git/refs', { method: 'POST', body: JSON.stringify({ ref: 'refs/heads/' + GH_BRANCH, sha: commit.sha }) });
+        }
+        done = true;
+      } catch (e) {
+        lastErr = e;
+        if (!/422|409/.test(e.message)) throw e;
+        await new Promise(r => setTimeout(r, 700));
+      }
+    }
+    if (!done) throw lastErr || new Error('保存できませんでした');
+    for (const id of uploaded) pendingUploadIds.delete(id);
+    metaDirty = false;
+    await saveLocal();
+    renderAll();
+    setStatus('同期済み ' + new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }));
+    if (manual) toast('同期したよ');
+  } catch (err) {
+    setStatus('同期エラー');
+    if (manual) toast('同期に失敗したよ…' + err.message, 4200);
+  } finally {
+    syncing = false;
+    updateStatusLineSoon();
+  }
+}
+function updateStatusLineSoon() { setTimeout(updateStatusLine, 1600); }
+document.getElementById('syncBtn').addEventListener('click', () => syncNow(true));
+document.getElementById('keyBtn').addEventListener('click', () => {
+  const t = askToken();
+  if (t) { toast('トークンを保存したよ'); syncNow(true); }
+  updateStatusLine();
+});
+document.getElementById('fitBtn').addEventListener('click', () => {
+  if (!placements.length) { camera = { cx: 0, cy: 0, scale: 1 }; applyCamera(); return; }
+  let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+  for (const p of placements) {
+    l = Math.min(l, p.x - p.w / 2); t = Math.min(t, p.y - p.h / 2);
+    r = Math.max(r, p.x + p.w / 2); b = Math.max(b, p.y + p.h / 2);
+  }
+  const view = viewport.getBoundingClientRect();
+  const bw = (r - l) + 120, bh = (b - t) + 120;
+  camera.scale = clamp(Math.min(view.width / bw, view.height / bh), 0.05, 2);
+  camera.cx = (l + r) / 2; camera.cy = (t + b) / 2;
+  applyCamera();
+  saveLocal();
+  for (const p of placements) { const el = frameEls.get(p.pid); if (el) refreshFrameImage(p, el); }
+});
+window.addEventListener('online', () => scheduleSync());
+
+/* ================= 起動 ================= */
+(async function init() {
+  await loadLocal();
+  applyCamera();
+  renderAll();
+  updateStatusLine();
+  if (getToken()) syncNow(false);
+})();
+</script>
+</body>
+</html>
