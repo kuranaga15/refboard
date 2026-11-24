@@ -129,9 +129,9 @@
     pointer-events: auto; display: none;
   }
   #resizeHandle.on { display: block; }
-  /* ハンドルのタップ範囲だけを少し広げる（見た目は変えない。kura指定で直径+10%） */
+  /* ハンドルのタップ範囲だけを大きく広げる（見た目は変えない。kura指定で直径+90%） */
   #resizeHandle::after, #groupHandle::after, .crop-handle::after {
-    content: ''; position: absolute; inset: -5%; border-radius: 50%;
+    content: ''; position: absolute; inset: -45%; border-radius: 50%;
   }
   /* トリミング（スケッチブックと同じ操作感：マスク＋四隅ハンドル＋✓/✕） */
   .frame.cropping { outline: 2px solid #3fbf72; outline-offset: 1px; }
@@ -671,10 +671,17 @@ function flushHidden(el) {
   el.style.visibility = '';
   el.style.transform = '';
 }
+/* 単体UI（ツールバー＋拡縮ハンドル）を出す対象。通常の単体選択を優先し、
+   範囲選択モードで選択が1個だけの時も同じUIを出す（ツールを切り替えず編集するため。kura指定） */
+function singleUiPid() {
+  if (selectedPid) return selectedPid;
+  if (rangeMode && multiSel.size === 1) return [...multiSel][0];
+  return null;
+}
 function layoutFrameUi() {
   let target = null, mode = 'none';
   if (cropState) { target = placementByPid(cropState.pid); mode = 'crop'; }
-  else if (selectedPid) { target = placementByPid(selectedPid); mode = 'sel'; }
+  else { const sp = singleUiPid(); if (sp) { target = placementByPid(sp); mode = 'sel'; } }
   if (!target) mode = 'none';
   if (mode !== uiMode) {
     if (uiMode === 'sel') { flushHidden(selToolbar); flushHidden(resizeHandle); }
@@ -803,7 +810,9 @@ const groupHandleEl = document.getElementById('groupHandle');
 const groupDelEl = document.getElementById('groupDel');
 function layoutMultiUi() {
   if (!multiUi) return;
-  const b = multiSel.size ? multiBounds() : null;
+  /* 選択が1個だけで単体UIが出ている時は、グループ側の四角・ハンドル・✕は出さない */
+  const soloCovered = multiSel.size === 1 && singleUiPid() === [...multiSel][0];
+  const b = (multiSel.size && !soloCovered) ? multiBounds() : null;
   if (!b) {
     groupBoxEl.style.display = 'none';
     groupHandleEl.style.display = 'none';
@@ -848,8 +857,9 @@ groupDelEl.addEventListener('click', async () => {
 resizeHandle.addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   e.preventDefault();
-  if (!selectedPid || cropState) return;
-  const p = placementByPid(selectedPid);
+  const sp = singleUiPid();
+  if (!sp || cropState) return;
+  const p = placementByPid(sp);
   if (!p) return;
   const startWorld = screenToWorld(e.clientX, e.clientY);
   dragState = {
@@ -862,9 +872,9 @@ resizeHandle.addEventListener('pointerdown', (e) => {
   resizeHandle.addEventListener('pointerup', onDragEnd, { once: true });
   resizeHandle.addEventListener('pointercancel', onDragEnd, { once: true });
 });
-selToolbar.querySelector('.act-dup').addEventListener('click', () => { if (selectedPid) duplicatePlacement(selectedPid); });
-selToolbar.querySelector('.act-crop').addEventListener('click', () => { if (selectedPid) startCrop(selectedPid); });
-selToolbar.querySelector('.act-del').addEventListener('click', () => { if (selectedPid) deletePlacementFlow(selectedPid); });
+selToolbar.querySelector('.act-dup').addEventListener('click', () => { const sp = singleUiPid(); if (sp) duplicatePlacement(sp); });
+selToolbar.querySelector('.act-crop').addEventListener('click', () => { const sp = singleUiPid(); if (sp) startCrop(sp); });
+selToolbar.querySelector('.act-del').addEventListener('click', () => { const sp = singleUiPid(); if (sp) deletePlacementFlow(sp); });
 cropControlsEl.querySelector('.act-crop-apply').addEventListener('click', () => { if (cropState) applyCrop(cropState.pid); });
 cropControlsEl.querySelector('.act-crop-cancel').addEventListener('click', () => { if (cropState) cancelCrop(cropState.pid); });
 function onDragMove(e) {
