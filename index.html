@@ -641,6 +641,7 @@ function onFramePointerDown(e) {
     const start = screenToWorld(e.clientX, e.clientY);
     const orig = new Map();
     for (const pid2 of multiSel) { const q = placementByPid(pid2); if (q) orig.set(pid2, { x: q.x, y: q.y }); }
+    beginDragHistory([...orig.keys()].map(id => placementByPid(id)).filter(Boolean));
     groupMove = { pointerId: e.pointerId, startX: start.x, startY: start.y, orig, pid: p.pid, startClientX: e.clientX, startClientY: e.clientY, startT: Date.now() };
     el.setPointerCapture(e.pointerId);
     el.addEventListener('pointermove', onGroupMove);
@@ -658,6 +659,7 @@ function onFramePointerDown(e) {
   selectPlacement(p.pid);
   p.z = ++zCounter;
   const start = screenToWorld(e.clientX, e.clientY);
+  beginDragHistory([p]);
   dragState = { mode: 'move', pid: p.pid, startX: start.x, startY: start.y, origX: p.x, origY: p.y, moved: false, pointerId: e.pointerId };
   el.setPointerCapture(e.pointerId);
   el.addEventListener('pointermove', onDragMove);
@@ -796,6 +798,7 @@ function onGroupResizeMove(e) {
   layoutMultiUi();
 }
 async function settleMultiDrag() {
+  commitDragHistory();
   for (const pid of multiSel) {
     const p = placementByPid(pid);
     if (p) { p.u = Date.now(); const el = frameEls.get(pid); if (el) refreshFrameImage(p, el); }
@@ -876,6 +879,7 @@ groupHandleEl.addEventListener('pointerdown', (e) => {
   const startW = screenToWorld(e.clientX, e.clientY);
   const orig = new Map();
   for (const pid of multiSel) { const q = placementByPid(pid); if (q) orig.set(pid, { x: q.x, y: q.y, w: q.w, h: q.h }); }
+  beginDragHistory([...orig.keys()].map(id => placementByPid(id)).filter(Boolean));
   groupDrag = { pointerId: e.pointerId, anchorX: b.minX, anchorY: b.minY, bboxW: b.w, orig, grabDX: startW.x - b.maxX, grabDY: startW.y - b.maxY };
   groupHandleEl.setPointerCapture(e.pointerId);
   groupHandleEl.addEventListener('pointermove', onGroupResizeMove);
@@ -884,7 +888,9 @@ groupHandleEl.addEventListener('pointerdown', (e) => {
 });
 groupDelEl.addEventListener('click', async () => {
   const pids = [...multiSel];
-  for (const pid of pids) await deletePlacementFlow(pid);
+  if (!pids.length) return;
+  pushHistory();   /* グループ削除はまとめて1段階として記録する */
+  for (const pid of pids) await deletePlacementFlow(pid, false);
 });
 
 /* 四隅の拡縮ハンドル共通。掴んだ角の対角を固定して拡縮する（kura指定） */
@@ -900,6 +906,7 @@ resizeHandles.forEach(h => {
     const sx = c.includes('e') ? 1 : -1;
     const sy = c.includes('s') ? 1 : -1;
     const startWorld = screenToWorld(e.clientX, e.clientY);
+    beginDragHistory([p]);
     dragState = {
       mode: 'resize', pid: p.pid, pointerId: e.pointerId, sx, sy,
       anchorX: p.x - sx * p.w / 2, anchorY: p.y - sy * p.h / 2,
@@ -944,6 +951,7 @@ async function onDragEnd(e) {
   if (!dragState) return;
   const p = placementByPid(dragState.pid);
   dragState = null;
+  commitDragHistory();
   if (p) {
     p.u = Date.now();
     metaDirty = true;
@@ -1255,7 +1263,7 @@ async function importFiles(files, anchor) {
   setStatus('取り込み中…');
   try {
     const prepared = [];
-    let dup = 0, failed = 0;
+    let dup = 0, failed = 0, importHistoryPushed = false;
     for (const f of list) {
       try {
         const buf = await f.arrayBuffer();
@@ -1275,6 +1283,7 @@ async function importFiles(files, anchor) {
         };
         await idbSet('blobs', id + ':file', main.blob);
         await idbSet('blobs', id + ':thumb', thumb.blob);
+        if (!importHistoryPushed) { pushHistory(); importHistoryPushed = true; }
         items.set(id, item);
         pendingUploadIds.add(id);
         prepared.push({ item, naturalW, naturalH });
@@ -1327,14 +1336,16 @@ document.addEventListener('paste', (e) => {
 function duplicatePlacement(pid) {
   const p = placementByPid(pid);
   if (!p) return;
+  pushHistory();
   const np = Object.assign({}, p, { pid: 'p-' + makeId(), x: p.x + 28, y: p.y + 28, z: ++zCounter, u: Date.now() });
   placements.push(np);
   metaDirty = true;
   saveLocal(); renderAll(); scheduleSync();
 }
-async function deletePlacementFlow(pid) {
+async function deletePlacementFlow(pid, record = true) {
   const p = placementByPid(pid);
   if (!p) return;
+  if (record) pushHistory();
   const others = placements.filter(q => q.itemId === p.itemId && q.pid !== pid);
   placements = placements.filter(q => q.pid !== pid);
   deletedPlacementIds.add(pid);
@@ -1344,6 +1355,7 @@ async function deletePlacementFlow(pid) {
     deletedItemIds.add(p.itemId);
     items.delete(p.itemId);
     pendingUploadIds.delete(p.itemId);
+    await stashBlobs(p.itemId);   /* 「戻る」で復元できるよう、本体はメモリに退避してから消す */
     idbDel('blobs', p.itemId + ':file').catch(() => {});
     idbDel('blobs', p.itemId + ':thumb').catch(() => {});
     for (const k of [p.itemId + ':file', p.itemId + ':thumb']) {
@@ -1526,6 +1538,7 @@ async function applyCrop(pid) {
       };
       await idbSet('blobs', id + ':file', mainBlob);
       await idbSet('blobs', id + ':thumb', thumbBlob);
+      pushHistory();
       items.set(id, newItem);
       pendingUploadIds.add(id);
       const oldItemId = p.itemId;
@@ -1538,7 +1551,7 @@ async function applyCrop(pid) {
         deletedItemIds.add(oldItemId);
         items.delete(oldItemId);
         pendingUploadIds.delete(oldItemId);
-        try { await idbDel('blobs', oldItemId + ':file'); await idbDel('blobs', oldItemId + ':thumb'); } catch (e) {}
+        await stashBlobs(oldItemId); try { await idbDel('blobs', oldItemId + ':file'); await idbDel('blobs', oldItemId + ':thumb'); } catch (e) {}
         for (const k of [oldItemId + ':file', oldItemId + ':thumb']) {
           if (urlCache.has(k)) { URL.revokeObjectURL(urlCache.get(k)); urlCache.delete(k); }
         }
@@ -1553,6 +1566,156 @@ async function applyCrop(pid) {
     toast('トリミングに失敗したよ…');
   }
 }
+
+/* ================= 元に戻す／やり直し =================
+   二本指タップ＝一段階戻る、三本指タップ＝やり直し（スケッチブックと同じ操作。kura指定）。
+   遡れるのは最大5段階まで（重くしないため）。
+   状態はsaveLocalと同じ形のスナップショット（画像本体は含まない）。
+   削除された画像の本体はメモリ上の退避（blobStash）に残し、復元時にIndexedDBへ戻す */
+const HISTORY_MAX = 5;
+let undoStack = [], redoStack = [];
+let blobStash = new Map();   // itemId -> { file, thumb }
+let dragHistory = null;      // ドラッグ開始時点のスナップショット { snap, before: Map }
+let historyBusy = false;
+function serializeState() {
+  return JSON.stringify({
+    items: [...items.values()],
+    placements,
+    deletedItemIds: [...deletedItemIds],
+    deletedPlacementIds: [...deletedPlacementIds],
+    pendingUploadIds: [...pendingUploadIds],
+    metaDirty, zCounter,
+    boardsMeta, otherBoards: [...otherBoards], activeBoardId,
+    deletedBoardIds: [...deletedBoardIds]
+  });
+}
+function pushHistory() {
+  undoStack.push(serializeState());
+  if (undoStack.length > HISTORY_MAX) undoStack.shift();
+  redoStack = [];
+  pruneBlobStash();
+}
+function pruneBlobStash() {
+  if (!blobStash.size) return;
+  const keep = new Set(items.keys());
+  for (const s of [...undoStack, ...redoStack]) {
+    try { for (const it of JSON.parse(s).items) keep.add(it.id); } catch (e) {}
+  }
+  for (const id of [...blobStash.keys()]) if (!keep.has(id)) blobStash.delete(id);
+}
+async function stashBlobs(itemId) {
+  try {
+    const f = await idbGet('blobs', itemId + ':file');
+    const t = await idbGet('blobs', itemId + ':thumb');
+    if (f || t) blobStash.set(itemId, { file: f, thumb: t });
+  } catch (e) {}
+}
+async function restoreState(json) {
+  const d = JSON.parse(json);
+  if (cropState) cancelCrop(cropState.pid);
+  if (freeState) endFreeform();
+  dragHistory = null;
+  clearMultiSel();
+  selectedPid = null;
+  const prevActive = activeBoardId;
+  items = new Map((d.items || []).map(it => [it.id, it]));
+  placements = d.placements || [];
+  deletedItemIds = new Set(d.deletedItemIds || []);
+  deletedPlacementIds = new Set(d.deletedPlacementIds || []);
+  pendingUploadIds = new Set(d.pendingUploadIds || []);
+  metaDirty = !!d.metaDirty;
+  zCounter = d.zCounter || 20;
+  if (Array.isArray(d.boardsMeta) && d.boardsMeta.length) boardsMeta = d.boardsMeta;
+  otherBoards = new Map(d.otherBoards || []);
+  if (d.activeBoardId && boardsMeta.some(b => b.id === d.activeBoardId)) activeBoardId = d.activeBoardId;
+  deletedBoardIds = new Set(d.deletedBoardIds || []);
+  if (activeBoardId !== prevActive) {
+    boardCameras[prevActive] = camera;
+    camera = boardCameras[activeBoardId] || { cx: 0, cy: 0, scale: 1 };
+  }
+  boardCameras[activeBoardId] = camera;
+  /* 退避しておいた画像本体をIndexedDBへ戻す */
+  for (const id of items.keys()) {
+    const st = blobStash.get(id);
+    if (st) {
+      if (st.file) await idbSet('blobs', id + ':file', st.file);
+      if (st.thumb) await idbSet('blobs', id + ':thumb', st.thumb);
+    }
+  }
+  renderAll();
+  applyCamera();
+  renderTabs();
+  await saveLocal();
+  scheduleSync();
+  pruneBlobStash();
+}
+async function undo() {
+  if (historyBusy || !undoStack.length) return;
+  historyBusy = true;
+  try {
+    redoStack.push(serializeState());
+    if (redoStack.length > HISTORY_MAX) redoStack.shift();
+    await restoreState(undoStack.pop());
+  } finally { historyBusy = false; }
+}
+async function redo() {
+  if (historyBusy || !redoStack.length) return;
+  historyBusy = true;
+  try {
+    undoStack.push(serializeState());
+    if (undoStack.length > HISTORY_MAX) undoStack.shift();
+    await restoreState(redoStack.pop());
+  } finally { historyBusy = false; }
+}
+function beginDragHistory(list) {
+  const before = new Map();
+  for (const p of list) before.set(p.pid, { x: p.x, y: p.y, w: p.w, h: p.h });
+  dragHistory = { snap: serializeState(), before };
+}
+function commitDragHistory() {
+  if (!dragHistory) return;
+  let changed = false;
+  for (const [pid, b] of dragHistory.before) {
+    const p = placementByPid(pid);
+    if (p && (p.x !== b.x || p.y !== b.y || p.w !== b.w || p.h !== b.h)) { changed = true; break; }
+  }
+  if (changed) {
+    undoStack.push(dragHistory.snap);
+    if (undoStack.length > HISTORY_MAX) undoStack.shift();
+    redoStack = [];
+    pruneBlobStash();
+  }
+  dragHistory = null;
+}
+/* 二本指・三本指の「素早いタップ」を拾う（観察専用。ピンチやドラッグは動いた時点で候補から外れる） */
+const tapTrack = new Map();
+let tapGesture = null;
+viewport.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('#frameUi, #multiUi')) return;
+  if (cropState || freeState) { tapGesture = null; tapTrack.clear(); return; }
+  tapTrack.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (!tapGesture) tapGesture = { n: 0, t0: Date.now(), ok: true };
+  tapGesture.n = Math.max(tapGesture.n, tapTrack.size);
+  if (tapTrack.size > 3) tapGesture.ok = false;
+  if (Date.now() - tapGesture.t0 > 350) tapGesture.ok = false;
+});
+viewport.addEventListener('pointermove', (e) => {
+  const tr = tapTrack.get(e.pointerId);
+  if (tr && tapGesture && Math.hypot(e.clientX - tr.x, e.clientY - tr.y) > 8) tapGesture.ok = false;
+});
+function endTapTrack(e, cancelled) {
+  if (!tapTrack.has(e.pointerId)) return;
+  tapTrack.delete(e.pointerId);
+  if (cancelled && tapGesture) tapGesture.ok = false;
+  if (tapTrack.size > 0 || !tapGesture) return;
+  const g = tapGesture;
+  tapGesture = null;
+  if (!g.ok || Date.now() - g.t0 > 450) return;
+  if (g.n === 2) undo();
+  else if (g.n === 3) redo();
+}
+viewport.addEventListener('pointerup', (e) => endTapTrack(e, false));
+viewport.addEventListener('pointercancel', (e) => endTapTrack(e, true));
 
 /* ================= フリーフォーム切り取り =================
    指でなぞった形に切り抜く。パスは常に最初の点へ閉じ、離した時点で適用する。
@@ -1713,6 +1876,7 @@ async function applyFreeform(pid, pts, bbox) {
       };
       await idbSet('blobs', id + ':file', mainBlob);
       await idbSet('blobs', id + ':thumb', thumbBlob);
+      pushHistory();
       items.set(id, newItem);
       pendingUploadIds.add(id);
       const oldItemId = p.itemId;
@@ -1725,7 +1889,7 @@ async function applyFreeform(pid, pts, bbox) {
         deletedItemIds.add(oldItemId);
         items.delete(oldItemId);
         pendingUploadIds.delete(oldItemId);
-        try { await idbDel('blobs', oldItemId + ':file'); await idbDel('blobs', oldItemId + ':thumb'); } catch (e) {}
+        await stashBlobs(oldItemId); try { await idbDel('blobs', oldItemId + ':file'); await idbDel('blobs', oldItemId + ':thumb'); } catch (e) {}
         for (const k of [oldItemId + ':file', oldItemId + ':thumb']) {
           if (urlCache.has(k)) { URL.revokeObjectURL(urlCache.get(k)); urlCache.delete(k); }
         }
@@ -2038,6 +2202,7 @@ document.getElementById('menuBoardNew').addEventListener('click', () => {
   const def = 'ボード' + (boardsMeta.length + 1);
   const name = prompt('新しいボードの名前', def);
   if (name === null) return;
+  pushHistory();
   const id = 'b-' + makeId();
   boardsMeta.push({ id, name: name.trim() || def, updatedAt: new Date().toISOString() });
   otherBoards.set(id, []);
@@ -2052,6 +2217,7 @@ document.getElementById('menuBoardRename').addEventListener('click', () => {
   if (!m) return;
   const name = prompt('ボードの名前を変更', m.name);
   if (name === null) return;
+  pushHistory();
   m.name = name.trim() || m.name;
   m.updatedAt = new Date().toISOString();
   metaDirty = true;
@@ -2069,6 +2235,7 @@ menuBoardDelete.addEventListener('click', () => {
   }
   disarmBoardDelete();
   menuEl.classList.remove('open');
+  pushHistory();
   if (cropState) cancelCrop(cropState.pid);
   selectPlacement(null);
   if (rangeMode) { rangeMode = false; rangeBtn.classList.remove('on'); clearMultiSel(); }
