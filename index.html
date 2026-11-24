@@ -33,10 +33,10 @@
   .bbtn:active { background: #3a3a41; }
   .bbtn img { display: block; pointer-events: none; }
   #fitBtn img { width: 27px; height: 27px; }
-  #syncBtn img { width: 25px; height: 25px; }
-  /* 同期中は同期アイコンをくるくる回す */
+  #syncBtn img { width: 25px; height: 25px; transform: translate(1px, -1px); }
+  /* 同期中は同期アイコンをくるくる回す（ずらし位置を保ったまま回す） */
   #syncBtn.syncing img { animation: rb-spin 0.9s linear infinite; }
-  @keyframes rb-spin { to { transform: rotate(360deg); } }
+  @keyframes rb-spin { from { transform: translate(1px, -1px) rotate(0deg); } to { transform: translate(1px, -1px) rotate(360deg); } }
   #menuBtn { font-size: 19px; font-weight: 700; letter-spacing: 1px; padding-bottom: 6px; }
   #importBtn {
     width: 40px; height: 40px; background: #6f6f76; border: none;
