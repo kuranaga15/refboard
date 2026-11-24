@@ -123,14 +123,14 @@
   #selToolbar.on, #cropControls.on { display: flex; }
   /* トリミングの✓/✕は右手操作前提で、画像の右端に吸着させる */
   #cropControls { transform: translateX(-100%); }
-  #resizeHandle {
+  .resize-handle {
     position: absolute; width: 14px; height: 14px; border-radius: 50%;
     background: #6f8dff; border: 2px solid #fff; cursor: nwse-resize; touch-action: none;
     pointer-events: auto; display: none;
   }
-  #resizeHandle.on { display: block; }
+  .resize-handle.on { display: block; }
   /* ハンドルのタップ範囲だけを大きく広げる（見た目は変えない。kura指定で直径+90%） */
-  #resizeHandle::after, #groupHandle::after, .crop-handle::after {
+  .resize-handle::after, #groupHandle::after, .crop-handle::after {
     content: ''; position: absolute; inset: -45%; border-radius: 50%;
   }
   /* トリミング（スケッチブックと同じ操作感：マスク＋四隅ハンドル＋✓/✕） */
@@ -223,7 +223,10 @@
       <div class="tbtn act-crop" title="トリミング"><img class="ticon" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAEnklEQVR4nO3dUUvrSBjG8Xlnkta2Vjhi5eCFIsIiC3u14oWXfgk/pJd+Cr3Y2xUWEVkKu624rNG2ySQze3F2lnK2OLVNpunb5wflgM1ppv2bpCZtIgQAAAAAAAAAlIKIhBBCdLtd6vf7v2itx2maJlmWvU/fJpPJ31mWvV9cXHSFEEIptdJxcxKFmAkRiWazuR1F0das+621hoikUkqGGM8mCfaCWmvtv/+aGfeZ6WmgPFhimENg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZs57NEnKxX8HiEhYa+d+DCIiKaWQUgruxx2M+d8xl0p4A5cxkPF4bGcdRfpemqa5MSbYk18l98tfNW/g4+PjhY8ZExFZa+329naklIp90x8dHX0ZDAZpFEVUFAXLRZiIKM9z2+/386Ioqp+fb4I0TZNlZuAO5sdx3CaiD9fVWuuRMSb3Tbeu3Gvx/Pz82+np6c9Jktiql2Tv0tloNLYrm/t34jhuh5rXKm1tbe24jzNVzRt4nm3nPOZZKsuaV125JbgoCh1qnt7AIVeXXFfN04hIhnye7F/QTYfAzGEbXIE6bWqwDWbOG/jt7e3PZWdCRNRut/d8Acfj8UvId5hVUErFrVZrd9XjcLyBT05ODhZ9cPdHfLfbVXd3d7/u7u6euD8VpqczxuRSyujq6urH29vboVJKhNjLUyY35vPz897Nzc0f7jmtelzeAQwGg6W3i0mSGGOMt9hwOHwvY36rNBwO31c9hmnzbIMXfnC3BDcajbkeJI5jRURinZfgOI5r9T5innfRS83AWjv3Y9hvPvV/6qKu467VbxuUD4GZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOZWfrrbafSNcLd18tlxl/U8fefGrFVgrXVhrRV5nq96KJ/mxqy1nut0yFmW2RAnL61V4F6v19nf3x+t8+mEe71exzetlFIdHBzESZIUy175zHd+7UrXg27wOzs79PDwcL+3t/fDrDO+O5tySn9rrRmNRs+2hMW32+1+/ej+Wi3BdbrWQZWISHY6nf0Q86pV4E26rE6o51qrwJt0WZ1Qz3VjXtBNhcDMBVtFW2uNu4Wa56ps5DZYKRWHvrRqnYV6HYIEttaKyWTyugmXcJdSRr4rmVtrjdZ6FGJMQXb4EpE4PDyMoigiY0y9LixUEqUU5Xluz87Ovl5fX/8+69J2bifPy8vLw+Xl5U+vr6+aiGiZHR6Pj48f7tcNtgQ/PT2t3w7mBfR6vb980xRFoe/v78dpmlY+nmDbYClZrpX/4/ZFN5tN5ZuWiGSr1SKttV12X7QxH79XCxbYN5B1R0TCGDN3LGOMMMaIZQP78F6sAIG5Q2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQQumfuu0awPNbifUcAvXtXqY7Mc5Hlusix7c5/umL7P/SxN07eqv5MEAAAAAAAAsIn+AcVgA0hIUB5uAAAAAElFTkSuQmCC" alt="トリミング"></div>
       <div class="tbtn del act-del" title="削除"><span class="xgl">✕</span></div>
     </div>
-    <div id="resizeHandle"></div>
+    <div class="resize-handle" id="resizeHandleNW" data-corner="nw"></div>
+    <div class="resize-handle" id="resizeHandleNE" data-corner="ne"></div>
+    <div class="resize-handle" id="resizeHandleSW" data-corner="sw"></div>
+    <div class="resize-handle" id="resizeHandle" data-corner="se"></div>
     <div id="cropControls">
       <div class="tbtn del act-crop-cancel" title="キャンセル"><span class="xgl">✕</span></div>
       <div class="tbtn apply act-crop-apply" title="適用">✓</div>
@@ -632,7 +635,7 @@ function onFramePointerDown(e) {
     const start = screenToWorld(e.clientX, e.clientY);
     const orig = new Map();
     for (const pid2 of multiSel) { const q = placementByPid(pid2); if (q) orig.set(pid2, { x: q.x, y: q.y }); }
-    groupMove = { pointerId: e.pointerId, startX: start.x, startY: start.y, orig };
+    groupMove = { pointerId: e.pointerId, startX: start.x, startY: start.y, orig, pid: p.pid, startClientX: e.clientX, startClientY: e.clientY, startT: Date.now() };
     el.setPointerCapture(e.pointerId);
     el.addEventListener('pointermove', onGroupMove);
     el.addEventListener('pointerup', onGroupMoveEnd, { once: true });
@@ -658,6 +661,7 @@ function onFramePointerDown(e) {
 const selToolbar = document.getElementById('selToolbar');
 const cropControlsEl = document.getElementById('cropControls');
 const resizeHandle = document.getElementById('resizeHandle');
+const resizeHandles = [...document.querySelectorAll('.resize-handle')];
 let uiMode = 'none';
 /* iOSでUIの残像が残らないよう、消える側のUIは「変形を外して描画を確定させる」
    フラッシュを挟んでから消す（要素を消す時に効いたのと同じ手当て） */
@@ -684,14 +688,14 @@ function layoutFrameUi() {
   else { const sp = singleUiPid(); if (sp) { target = placementByPid(sp); mode = 'sel'; } }
   if (!target) mode = 'none';
   if (mode !== uiMode) {
-    if (uiMode === 'sel') { flushHidden(selToolbar); flushHidden(resizeHandle); }
+    if (uiMode === 'sel') { flushHidden(selToolbar); resizeHandles.forEach(h => flushHidden(h)); }
     if (uiMode === 'crop') { flushHidden(cropControlsEl); }
     uiMode = mode;
   }
   if (!target) {
     selToolbar.classList.remove('on');
     cropControlsEl.classList.remove('on');
-    resizeHandle.classList.remove('on');
+    resizeHandles.forEach(h => h.classList.remove('on'));
     layoutMultiUi();
     return;
   }
@@ -702,18 +706,24 @@ function layoutFrameUi() {
   const bottom = cyS + target.h * camera.scale / 2;
   if (mode === 'crop') {
     selToolbar.classList.remove('on');
-    resizeHandle.classList.remove('on');
+    resizeHandles.forEach(h => h.classList.remove('on'));
     cropControlsEl.classList.add('on');
     cropControlsEl.style.left = right + 'px';
     cropControlsEl.style.top = (bottom + 8) + 'px';
   } else {
     cropControlsEl.classList.remove('on');
     selToolbar.classList.add('on');
-    resizeHandle.classList.add('on');
+    resizeHandles.forEach(h => h.classList.add('on'));
     selToolbar.style.left = cxS + 'px';
     selToolbar.style.top = (bottom + 8) + 'px';
-    resizeHandle.style.left = (right - 7) + 'px';
-    resizeHandle.style.top = (bottom - 7) + 'px';
+    /* 拡縮ハンドルは四隅すべてに出す（kura指定） */
+    const left = cxS - target.w * camera.scale / 2;
+    const top = cyS - target.h * camera.scale / 2;
+    for (const h of resizeHandles) {
+      const c = h.dataset.corner;
+      h.style.left = ((c.includes('e') ? right : left) - 7) + 'px';
+      h.style.top = ((c.includes('s') ? bottom : top) - 7) + 'px';
+    }
   }
   layoutMultiUi();
 }
@@ -801,7 +811,15 @@ function onGroupMove(e) {
 }
 async function onGroupMoveEnd(e) {
   if (!groupMove) return;
+  const gm = groupMove;
   groupMove = null;
+  /* 動かさずに離したタップは、その画像の単体選択に切り替える（kura指定） */
+  if (Math.hypot(e.clientX - gm.startClientX, e.clientY - gm.startClientY) <= 10 && (Date.now() - gm.startT) <= 500) {
+    clearMultiSel();
+    selectPlacement(gm.pid);
+    saveLocal();
+    return;
+  }
   await settleMultiDrag();
 }
 /* 複数選択中は、選択全体を囲う四角と右下ハンドル、下部中央に✕を1つ出す */
@@ -854,23 +872,29 @@ groupDelEl.addEventListener('click', async () => {
   for (const pid of pids) await deletePlacementFlow(pid);
 });
 
-resizeHandle.addEventListener('pointerdown', (e) => {
-  e.stopPropagation();
-  e.preventDefault();
-  const sp = singleUiPid();
-  if (!sp || cropState) return;
-  const p = placementByPid(sp);
-  if (!p) return;
-  const startWorld = screenToWorld(e.clientX, e.clientY);
-  dragState = {
-    mode: 'resize', pid: p.pid, pointerId: e.pointerId,
-    anchorX: p.x - p.w / 2, anchorY: p.y - p.h / 2,
-    grabDX: startWorld.x - (p.x + p.w / 2), grabDY: startWorld.y - (p.y + p.h / 2)
-  };
-  resizeHandle.setPointerCapture(e.pointerId);
-  resizeHandle.addEventListener('pointermove', onDragMove);
-  resizeHandle.addEventListener('pointerup', onDragEnd, { once: true });
-  resizeHandle.addEventListener('pointercancel', onDragEnd, { once: true });
+/* 四隅の拡縮ハンドル共通。掴んだ角の対角を固定して拡縮する（kura指定） */
+resizeHandles.forEach(h => {
+  h.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const sp = singleUiPid();
+    if (!sp || cropState) return;
+    const p = placementByPid(sp);
+    if (!p) return;
+    const c = h.dataset.corner;
+    const sx = c.includes('e') ? 1 : -1;
+    const sy = c.includes('s') ? 1 : -1;
+    const startWorld = screenToWorld(e.clientX, e.clientY);
+    dragState = {
+      mode: 'resize', pid: p.pid, pointerId: e.pointerId, sx, sy,
+      anchorX: p.x - sx * p.w / 2, anchorY: p.y - sy * p.h / 2,
+      grabDX: startWorld.x - (p.x + sx * p.w / 2), grabDY: startWorld.y - (p.y + sy * p.h / 2)
+    };
+    h.setPointerCapture(e.pointerId);
+    h.addEventListener('pointermove', onDragMove);
+    h.addEventListener('pointerup', onDragEnd, { once: true });
+    h.addEventListener('pointercancel', onDragEnd, { once: true });
+  });
 });
 selToolbar.querySelector('.act-dup').addEventListener('click', () => { const sp = singleUiPid(); if (sp) duplicatePlacement(sp); });
 selToolbar.querySelector('.act-crop').addEventListener('click', () => { const sp = singleUiPid(); if (sp) startCrop(sp); });
@@ -888,15 +912,15 @@ function onDragMove(e) {
     p.y = dragState.origY + (now.y - dragState.startY);
     dragState.moved = true;
   } else {
-    /* 拡縮は中心ではなく、掴んだ点の対角の角（左上）を固定して行う（2026-11-24 kura指定） */
+    /* 拡縮は中心ではなく、掴んだ角の対角を固定して行う（2026-11-24 kura指定） */
     const item = itemOf(p);
     const ratio = item ? (item.h / item.w) : 1;
     const now = screenToWorld(e.clientX, e.clientY);
     const cornerX = now.x - dragState.grabDX;
-    p.w = Math.max(40, cornerX - dragState.anchorX);
+    p.w = Math.max(40, (cornerX - dragState.anchorX) * dragState.sx);
     p.h = p.w * ratio;
-    p.x = dragState.anchorX + p.w / 2;
-    p.y = dragState.anchorY + p.h / 2;
+    p.x = dragState.anchorX + dragState.sx * p.w / 2;
+    p.y = dragState.anchorY + dragState.sy * p.h / 2;
   }
   if (el) positionFrameEl(p, el);
 }
@@ -919,8 +943,23 @@ async function onDragEnd(e) {
 const pointers = new Map();
 let panState = null, pinchState = null;
 let tapCandidate = null;   // 選択されていない画像への「軽いタップ」候補
+let cropTapCandidate = null;   // トリミング範囲の外側へのタップ候補（離したら完了にする）
 viewport.addEventListener('pointerdown', (e) => {
   if (e.target.closest('#frameUi, #multiUi')) return;   /* 画面固定UIの上はキャンバス操作にしない */
+  /* トリミング中、トリミング範囲の外側へのタップは「完了」として扱う（✓を押さなくてよい。kura指定）。
+     別の画像へのタップは従来通りキャンセル側に倒すため、ここでは候補にしない */
+  if (cropState) {
+    const frameElC = e.target.closest('.frame');
+    const fpC = frameElC ? placementByPid(frameElC.dataset.pid) : null;
+    let outside = false;
+    if (!fpC) outside = true;
+    else if (fpC.pid === cropState.pid) {
+      const wpt = screenToWorld(e.clientX, e.clientY);
+      const lx = wpt.x - (fpC.x - fpC.w / 2), ly = wpt.y - (fpC.y - fpC.h / 2);
+      outside = lx < cropState.x || lx > cropState.x + cropState.w || ly < cropState.y || ly > cropState.y + cropState.h;
+    }
+    cropTapCandidate = outside ? { pointerId: e.pointerId, x: e.clientX, y: e.clientY, t: Date.now() } : null;
+  }
   if (rangeMode) {
     if (groupMove || groupDrag) return;   /* グループ操作中は投げ縄・ピンチを始めない */
     const frameEl0 = e.target.closest('.frame');
@@ -930,7 +969,7 @@ viewport.addEventListener('pointerdown', (e) => {
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     viewport.setPointerCapture(e.pointerId);
     if (pointers.size === 1) {
-      rangeDrag = { pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, moved: false };
+      rangeDrag = { pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, moved: false, tapPid: fp0 ? fp0.pid : null };
       panState = null;
       tapCandidate = null;
     } else if (pointers.size === 2) {
@@ -1001,6 +1040,14 @@ viewport.addEventListener('pointermove', (e) => {
   }
 });
 function endViewportPointer(e) {
+  if (cropTapCandidate && e.pointerId === cropTapCandidate.pointerId) {
+    const c = cropTapCandidate;
+    cropTapCandidate = null;
+    if (cropState && pointers.size <= 1 && (Date.now() - c.t) <= 500 &&
+        Math.hypot(e.clientX - c.x, e.clientY - c.y) <= 10) {
+      applyCrop(cropState.pid);   /* 外側タップでトリミングを完了する */
+    }
+  }
   if (rangeDrag && e.pointerId === rangeDrag.pointerId) {
     const rd = rangeDrag;
     rangeDrag = null;
@@ -1011,6 +1058,7 @@ function endViewportPointer(e) {
       panState = null;
       tapCandidate = null;
       if (rd.moved) finishRangeSelect(rd.x0, rd.y0, e.clientX, e.clientY);
+      else if (rd.tapPid) { clearMultiSel(); selectPlacement(rd.tapPid); }   /* 投げ縄モードでも画像タップは単体選択（kura指定） */
       else clearMultiSel();   /* 範囲を作らないタップは複数選択の解除 */
       saveLocal();
       nudgeRepaint();
