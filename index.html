@@ -115,6 +115,9 @@
   .tbtn.del { color: #fff; font-weight: 700; font-size: 20px; }
   .tbtn img.ticon { width: 17px; height: 17px; display: block; pointer-events: none; }
   .tbtn svg { width: 16px; height: 16px; display: block; pointer-events: none; }
+  /* 見た目の重心に合わせた位置の微調整（kuraの実機目視による指定値） */
+  .act-dup svg { transform: translate(2px, 2px); }
+  .tbtn .xgl { display: block; transform: translate(1px, -4px); }
   #hint {
     position: absolute; left: 50%; top: 46%; transform: translate(-50%,-50%);
     color: #9a9aa5; font-size: 14px; text-align: center; line-height: 1.9; pointer-events: none; display: none;
@@ -164,12 +167,12 @@
     <div id="selToolbar">
       <div class="tbtn act-dup" title="複製"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></div>
       <div class="tbtn act-crop" title="トリミング"><img class="ticon" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAEnklEQVR4nO3dUUvrSBjG8Xlnkta2Vjhi5eCFIsIiC3u14oWXfgk/pJd+Cr3Y2xUWEVkKu624rNG2ySQze3F2lnK2OLVNpunb5wflgM1ppv2bpCZtIgQAAAAAAAAAlIKIhBBCdLtd6vf7v2itx2maJlmWvU/fJpPJ31mWvV9cXHSFEEIptdJxcxKFmAkRiWazuR1F0das+621hoikUkqGGM8mCfaCWmvtv/+aGfeZ6WmgPFhimENg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZs57NEnKxX8HiEhYa+d+DCIiKaWQUgruxx2M+d8xl0p4A5cxkPF4bGcdRfpemqa5MSbYk18l98tfNW/g4+PjhY8ZExFZa+329naklIp90x8dHX0ZDAZpFEVUFAXLRZiIKM9z2+/386Ioqp+fb4I0TZNlZuAO5sdx3CaiD9fVWuuRMSb3Tbeu3Gvx/Pz82+np6c9Jktiql2Tv0tloNLYrm/t34jhuh5rXKm1tbe24jzNVzRt4nm3nPOZZKsuaV125JbgoCh1qnt7AIVeXXFfN04hIhnye7F/QTYfAzGEbXIE6bWqwDWbOG/jt7e3PZWdCRNRut/d8Acfj8UvId5hVUErFrVZrd9XjcLyBT05ODhZ9cPdHfLfbVXd3d7/u7u6euD8VpqczxuRSyujq6urH29vboVJKhNjLUyY35vPz897Nzc0f7jmtelzeAQwGg6W3i0mSGGOMt9hwOHwvY36rNBwO31c9hmnzbIMXfnC3BDcajbkeJI5jRURinZfgOI5r9T5innfRS83AWjv3Y9hvPvV/6qKu467VbxuUD4GZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOZWfrrbafSNcLd18tlxl/U8fefGrFVgrXVhrRV5nq96KJ/mxqy1nut0yFmW2RAnL61V4F6v19nf3x+t8+mEe71exzetlFIdHBzESZIUy175zHd+7UrXg27wOzs79PDwcL+3t/fDrDO+O5tySn9rrRmNRs+2hMW32+1+/ej+Wi3BdbrWQZWISHY6nf0Q86pV4E26rE6o51qrwJt0WZ1Qz3VjXtBNhcDMBVtFW2uNu4Wa56ps5DZYKRWHvrRqnYV6HYIEttaKyWTyugmXcJdSRr4rmVtrjdZ6FGJMQXb4EpE4PDyMoigiY0y9LixUEqUU5Xluz87Ovl5fX/8+69J2bifPy8vLw+Xl5U+vr6+aiGiZHR6Pj48f7tcNtgQ/PT2t3w7mBfR6vb980xRFoe/v78dpmlY+nmDbYClZrpX/4/ZFN5tN5ZuWiGSr1SKttV12X7QxH79XCxbYN5B1R0TCGDN3LGOMMMaIZQP78F6sAIG5Q2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQQumfuu0awPNbifUcAvXtXqY7Mc5Hlusix7c5/umL7P/SxN07eqv5MEAAAAAAAAsIn+AcVgA0hIUB5uAAAAAElFTkSuQmCC" alt="トリミング"></div>
-      <div class="tbtn del act-del" title="削除">✕</div>
+      <div class="tbtn del act-del" title="削除"><span class="xgl">✕</span></div>
     </div>
     <div id="resizeHandle"></div>
     <div id="cropControls">
       <div class="tbtn apply act-crop-apply" title="適用">✓</div>
-      <div class="tbtn del act-crop-cancel" title="キャンセル">✕</div>
+      <div class="tbtn del act-crop-cancel" title="キャンセル"><span class="xgl">✕</span></div>
     </div>
   </div>
   <div id="hint">右上の ＋ から画像を取り込んでね<br>ドラッグで移動、ピンチで拡大縮小だよ</div>
