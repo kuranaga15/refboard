@@ -994,6 +994,7 @@ viewport.addEventListener('pointerdown', (e) => {
     const frameEl0 = e.target.closest('.frame');
     const fp0 = frameEl0 ? placementByPid(frameEl0.dataset.pid) : null;
     if (fp0 && multiSel.has(fp0.pid)) return;   /* 選択済み画像はフレーム側でグループ移動する */
+    if (fp0 && fp0.pid === selectedPid) return;   /* 単体選択中の画像もフレーム側で移動する（投げ縄に奪われると最初のドラッグが効かない） */
     e.preventDefault();
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     viewport.setPointerCapture(e.pointerId);
