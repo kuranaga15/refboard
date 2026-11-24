@@ -37,7 +37,7 @@
   #syncBtn img { width: 25px; height: 25px; transform: translate(1px, -1px); transform-origin: 46.9% 53.1%; }
   /* 同期中は同期アイコンをくるくる回す（ずらし位置を保ったまま回す） */
   #syncBtn.syncing img { animation: rb-spin 0.9s linear infinite; }
-  @keyframes rb-spin { from { transform: translate(1px, -1px) rotate(0deg); } to { transform: translate(1px, -1px) rotate(360deg); } }
+  @keyframes rb-spin { from { transform: translate(1px, -1px) rotate(0deg); } to { transform: translate(1px, -1px) rotate(-360deg); } }
   #menuBtn { font-size: 19px; font-weight: 700; letter-spacing: 1px; padding-bottom: 6px; }
   #importBtn {
     width: 40px; height: 40px; background: #6f6f76; border: none;
@@ -678,6 +678,7 @@ function flushHidden(el) {
 /* 単体UI（ツールバー＋拡縮ハンドル）を出す対象。通常の単体選択を優先し、
    範囲選択モードで選択が1個だけの時も同じUIを出す（ツールを切り替えず編集するため。kura指定） */
 function singleUiPid() {
+  if (multiSel.size >= 2) return null;   /* 複数選択中は単体UIを出さない（残ると誤操作するため） */
   if (selectedPid) return selectedPid;
   if (rangeMode && multiSel.size === 1) return [...multiSel][0];
   return null;
@@ -750,6 +751,8 @@ function finishRangeSelect(x0, y0, x1, y1) {
     }
   }
   refreshMultiClasses();
+  /* 投げ縄で選択したら、以前の単体選択は解除する（単体UIが残って誤操作するため） */
+  if (multiSel.size && selectedPid) selectPlacement(null);
 }
 function multiBounds() {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, n = 0;
