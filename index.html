@@ -1241,7 +1241,7 @@ function startCrop(pid) {
   selectPlacement(pid);
   const el = frameEls.get(pid);
   if (!el) return;
-  cropState = { pid, x: p.w * 0.1, y: p.h * 0.1, w: p.w * 0.8, h: p.h * 0.8, frameW: p.w, frameH: p.h };
+  cropState = { pid, x: 0, y: 0, w: p.w, h: p.h, frameW: p.w, frameH: p.h };
   el.classList.add('cropping');
   positionFrameEl(p, el);
   updateCropMask(el);
