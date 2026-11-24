@@ -108,12 +108,13 @@
   .crop-handle.se { right: -8px; bottom: -8px; cursor: nwse-resize; }
   .tbtn.apply { background: #2f9e5f; border-color: #2f9e5f; color: #fff; }
   .tbtn {
-    width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25);
+    width: 27px; height: 27px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25);
     background: rgba(25,25,30,.92); color: #eee; font-size: 15px; cursor: pointer;
     display: inline-flex; align-items: center; justify-content: center;
   }
-  .tbtn.del { color: #ff8f8f; }
+  .tbtn.del { color: #fff; font-weight: 700; }
   .tbtn img.ticon { width: 21px; height: 21px; display: block; pointer-events: none; }
+  .tbtn svg { width: 20px; height: 20px; display: block; pointer-events: none; }
   #hint {
     position: absolute; left: 50%; top: 46%; transform: translate(-50%,-50%);
     color: #9a9aa5; font-size: 14px; text-align: center; line-height: 1.9; pointer-events: none; display: none;
@@ -161,8 +162,8 @@
   <div id="world"></div>
   <div id="frameUi">
     <div id="selToolbar">
-      <div class="tbtn act-dup" title="複製">⧉</div>
-      <div class="tbtn act-crop" title="トリミング"><img class="ticon" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAEfklEQVR4nO2dQU/zNhjHbdeNWhVI4bSKSpOmfaSJD7DxAdgBtF24IwSbtMPEaXe+03YqaNLYoE0hr4pj70Dzvu8mqA1N3eTP/ydxoUkeJ784juPEjxCEEEIIIYQQQsj7Qa5041IK55zQWovz8/NvBoPBl7PZ7IOU8tm4R0dHv45Go6JcjyyPjhFESim2trb629vbX8xms/wlwUqplZ5w75EogoUQwlprjTEzY8xMSqlixX3vRBMshBDyCfVSDSbVw5oEDgWDQ8HgUDA4FAwOBYNDweBQMDgUDA4Fg0PB4HifRS/z2LhcN3QbUsqPf+jEGg71Cl6mIOW6j4+PQcsbY5xzjmPBFeIV3O/3l65OWmuplPI2B/1+X0+nU6uUgpZsrRVZlrkY++iVd3l5+X0Vgbrd7qZvmDDP86lzzlYRr44451ySJJ2rq6s/Dg4OLo0xK4/prcGbm5s7VQQqisK7N71eL0UeK54L7vZ6vb9ixfQKNsaENaAeQsSFnARNxjlnlVKtmPsZchcdrUYh1945qnyrJVrAWIHIeqBgcEL6wZXcy4dcfqP0GyJQp6bGK1hr3a4iUMiNRavV0nU6OG/BOeestcW6y1HiFZxl2T9VBArpBz88PEzqdHDegpRSdbvdjXWXo8QreH9//+e3brz8BKXdbouzs7PvBoPBV4s+XTk+Pv5lNBrNmvjpilJKWGvFcDhMTk9Pf6xLc+MVPJlMli7ofOe9T6jG47GpIt46GY/HterLr3w0qfz4LKgw+qkJbnIN1lrX6h5ipaNJ5fqh2/h82aYJLstet3KzHwwOBYNDweBQMDgUDA4Fg0PB4FAwOBQMDgWDQ8HgUDA4FAwOBYNDweBQMDgUDA4Fg0PB4FAwOBQMDgWDQ8HgUDA4FAwOBYNDweBQMDgUDA4Fg0PB4FAwOBQMDgWDQ8HgUDA4FAwOBYNDweBQMDgUDA4Fg0PB4ITNEhqJJqe2e23Zq9pP39yYtRLc5NR2RfE0j7kxJqjwoen+lqVWgtM01VmW2SZPJ5ymqfeYKqXUzs6OrCLzmW9+7ZVeCz+f8f3i4uLb3d3drxfN+J7n+dRaWzQ5b4NSqtXpdHqLlnHOuTzPsyri7e3t/bTo91rVYITUdiFJOaSUsqqUgT5qJRgltV3ISVpVykAftRLc9Nr7GmLtK/vB4FAwONEu0e4TVoCfWHVK4xdNcKvVammtk6Z3g3yEprarKmWgN06MIEIIcX9/n2VZ9veifjACof3gqlIG+oh2oNM0lUqpxj2hCkUpJYqiEMPhMDk5OfnhuWXmKd4719fXvx8eHv4W+lhzEXd3dwu3Ea0Gj8djTLP/Y2Njw0gp5aI21lprb25uvKn+qiCaYOCrshDi9ant2u22qOJZdG1Gk1AvzSWvTW0Xa9QMurtCKBgeCgaHgsGhYHAoGBwKBoeCwaFgcCgYHAoGp1Yv3aFQvrryzP9trDc5Sih4BWitk/mrSf/BOee01olSKtqVk4Irxlrrbm9v/3yhBrskSTqTyeR2HWUjhBBCCCGEEELQ+Rdcf+PET6+6YQAAAABJRU5ErkJggg==" alt="トリミング"></div>
+      <div class="tbtn act-dup" title="複製"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></div>
+      <div class="tbtn act-crop" title="トリミング"><img class="ticon" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAEnklEQVR4nO3dUUvrSBjG8Xlnkta2Vjhi5eCFIsIiC3u14oWXfgk/pJd+Cr3Y2xUWEVkKu624rNG2ySQze3F2lnK2OLVNpunb5wflgM1ppv2bpCZtIgQAAAAAAAAAlIKIhBBCdLtd6vf7v2itx2maJlmWvU/fJpPJ31mWvV9cXHSFEEIptdJxcxKFmAkRiWazuR1F0das+621hoikUkqGGM8mCfaCWmvtv/+aGfeZ6WmgPFhimENg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZs57NEnKxX8HiEhYa+d+DCIiKaWQUgruxx2M+d8xl0p4A5cxkPF4bGcdRfpemqa5MSbYk18l98tfNW/g4+PjhY8ZExFZa+329naklIp90x8dHX0ZDAZpFEVUFAXLRZiIKM9z2+/386Ioqp+fb4I0TZNlZuAO5sdx3CaiD9fVWuuRMSb3Tbeu3Gvx/Pz82+np6c9Jktiql2Tv0tloNLYrm/t34jhuh5rXKm1tbe24jzNVzRt4nm3nPOZZKsuaV125JbgoCh1qnt7AIVeXXFfN04hIhnye7F/QTYfAzGEbXIE6bWqwDWbOG/jt7e3PZWdCRNRut/d8Acfj8UvId5hVUErFrVZrd9XjcLyBT05ODhZ9cPdHfLfbVXd3d7/u7u6euD8VpqczxuRSyujq6urH29vboVJKhNjLUyY35vPz897Nzc0f7jmtelzeAQwGg6W3i0mSGGOMt9hwOHwvY36rNBwO31c9hmnzbIMXfnC3BDcajbkeJI5jRURinZfgOI5r9T5innfRS83AWjv3Y9hvPvV/6qKu467VbxuUD4GZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOZWfrrbafSNcLd18tlxl/U8fefGrFVgrXVhrRV5nq96KJ/mxqy1nut0yFmW2RAnL61V4F6v19nf3x+t8+mEe71exzetlFIdHBzESZIUy175zHd+7UrXg27wOzs79PDwcL+3t/fDrDO+O5tySn9rrRmNRs+2hMW32+1+/ej+Wi3BdbrWQZWISHY6nf0Q86pV4E26rE6o51qrwJt0WZ1Qz3VjXtBNhcDMBVtFW2uNu4Wa56ps5DZYKRWHvrRqnYV6HYIEttaKyWTyugmXcJdSRr4rmVtrjdZ6FGJMQXb4EpE4PDyMoigiY0y9LixUEqUU5Xluz87Ovl5fX/8+69J2bifPy8vLw+Xl5U+vr6+aiGiZHR6Pj48f7tcNtgQ/PT2t3w7mBfR6vb980xRFoe/v78dpmlY+nmDbYClZrpX/4/ZFN5tN5ZuWiGSr1SKttV12X7QxH79XCxbYN5B1R0TCGDN3LGOMMMaIZQP78F6sAIG5Q2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQQumfuu0awPNbifUcAvXtXqY7Mc5Hlusix7c5/umL7P/SxN07eqv5MEAAAAAAAAsIn+AcVgA0hIUB5uAAAAAElFTkSuQmCC" alt="トリミング"></div>
       <div class="tbtn del act-del" title="削除">✕</div>
     </div>
     <div id="resizeHandle"></div>
