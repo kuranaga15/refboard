@@ -59,34 +59,31 @@
   .frame {
     position: absolute; cursor: grab; touch-action: none;
     background: #3a3a40; border-radius: 4px;
-    box-shadow: 0 4px 18px rgba(0,0,0,.45);
+    /* 画像にシャドウは付けない（2026-11-24 kura指定） */
   }
   .frame img { width: 100%; height: 100%; display: block; border-radius: 4px; pointer-events: none; object-fit: fill; -webkit-user-drag: none; -webkit-touch-callout: none; }
   .frame.selected { outline: 2px solid #6f8dff; outline-offset: 1px; }
-  /* 透過画像は四角い箱にせず、輪郭に沿った影だけにする */
-  .frame.alpha { background: transparent; box-shadow: none; border-radius: 0; }
-  .frame.alpha img { border-radius: 0; filter: drop-shadow(0 4px 10px rgba(0,0,0,.5)); }
-  .frame .handle {
-    position: absolute; right: -11px; bottom: -11px; width: 24px; height: 24px; border-radius: 50%;
-    background: #6f8dff; border: 2px solid #fff; display: none; cursor: nwse-resize; touch-action: none; z-index: 5;
-    transform: scale(var(--inv-scale, 1));
-  }
-  .frame.selected .handle { display: block; }
-  /* 画像下のUIはズームに依らず画面上で固定サイズにする（2026-11-24 kura指定）。
-     外側で位置だけ決め、内側を 1/scale で逆拡大して見た目の大きさを保つ */
-  .frame .toolbar {
-    position: absolute; left: 50%; bottom: calc(-8px * var(--inv-scale, 1) - 34px);
+  /* 透過画像は四角い箱にしない（シャドウも付けない） */
+  .frame.alpha { background: transparent; border-radius: 0; }
+  .frame.alpha img { border-radius: 0; }
+  /* 画像下のUI（ツールバー・拡縮ハンドル・トリミングの✓/✕）は、フレームの中ではなく
+     画面固定レイヤー（#frameUi）に一組だけ置く。ズームに依らず常に同じ大きさになり、
+     フレーム側の表示切替でiOSにUIの残像が二重に残る問題も起きない（2026-11-24） */
+  #frameUi { position: absolute; inset: 0; pointer-events: none; z-index: 50; }
+  #selToolbar, #cropControls {
+    position: absolute; display: flex; gap: 6px; pointer-events: auto;
     transform: translateX(-50%);
-    display: none; z-index: 60;
+    opacity: 0; visibility: hidden;
   }
-  .frame.selected .toolbar { display: block; }
-  .toolbar-inner {
-    display: flex; gap: 6px;
-    transform: scale(var(--inv-scale, 1)); transform-origin: top center;
+  #selToolbar.on, #cropControls.on { opacity: 1; visibility: visible; }
+  #resizeHandle {
+    position: absolute; width: 24px; height: 24px; border-radius: 50%;
+    background: #6f8dff; border: 2px solid #fff; cursor: nwse-resize; touch-action: none;
+    pointer-events: auto; opacity: 0; visibility: hidden;
   }
+  #resizeHandle.on { opacity: 1; visibility: visible; }
   /* トリミング（スケッチブックと同じ操作感：マスク＋四隅ハンドル＋✓/✕） */
   .frame.cropping { outline: 2px solid #3fbf72; outline-offset: 1px; }
-  .frame.cropping .handle, .frame.cropping .toolbar { display: none !important; }
   .crop-mask { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 4; }
   .frame.cropping .crop-mask { display: block; }
   .crop-mask-overlay { position: absolute; background: rgba(0,0,0,.55); }
@@ -107,15 +104,6 @@
   .crop-handle.ne { right: -8px; top: -8px; cursor: nesw-resize; }
   .crop-handle.sw { left: -8px; bottom: -8px; cursor: nesw-resize; }
   .crop-handle.se { right: -8px; bottom: -8px; cursor: nwse-resize; }
-  .crop-controls {
-    position: absolute; left: 50%; bottom: calc(-8px * var(--inv-scale, 1) - 34px);
-    transform: translateX(-50%); display: none; z-index: 60;
-  }
-  .frame.cropping .crop-controls { display: block; }
-  .crop-controls-inner {
-    display: flex; gap: 6px;
-    transform: scale(var(--inv-scale, 1)); transform-origin: top center;
-  }
   .tbtn.apply { background: #2f9e5f; border-color: #2f9e5f; color: #fff; }
   .tbtn {
     width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25);
@@ -168,6 +156,19 @@
 </div>
 <div id="viewport">
   <div id="world"></div>
+  <div id="frameUi">
+    <div id="selToolbar">
+      <div class="tbtn act-dup" title="複製">⧉</div>
+      <div class="tbtn act-crop" title="トリミング">✂</div>
+      <div class="tbtn act-open" title="詳細">…</div>
+      <div class="tbtn del act-del" title="削除">✕</div>
+    </div>
+    <div id="resizeHandle"></div>
+    <div id="cropControls">
+      <div class="tbtn apply act-crop-apply" title="適用">✓</div>
+      <div class="tbtn del act-crop-cancel" title="キャンセル">✕</div>
+    </div>
+  </div>
   <div id="hint">右上の ＋ から画像を取り込んでね<br>ドラッグで移動、ピンチで拡大縮小だよ</div>
 </div>
 <div id="detail">
@@ -396,6 +397,7 @@ function applyCamera() {
   const ox = (r.width / 2 - camera.cx * camera.scale) % grid;
   const oy = (r.height / 2 - camera.cy * camera.scale) % grid;
   viewport.style.backgroundPosition = ox + 'px ' + oy + 'px';
+  layoutFrameUi();
 }
 function screenToWorld(clientX, clientY) {
   const r = viewport.getBoundingClientRect();
@@ -438,7 +440,7 @@ function removeFrameEl(pid) {
   if (!el) return;
   el.style.display = 'none';
   el.style.transform = 'none';
-  el.querySelectorAll('.toolbar, .toolbar-inner, .handle, .crop-controls, .crop-controls-inner, .crop-handle').forEach(n => { n.style.transform = 'none'; });
+  el.querySelectorAll('.crop-handle').forEach(n => { n.style.transform = 'none'; });
   void el.offsetHeight;
   el.remove();
   frameEls.delete(pid);
@@ -464,6 +466,7 @@ function renderAll() {
   }
   hintEl.style.display = placements.length ? 'none' : 'block';
   updateStatusLine();
+  layoutFrameUi();
 }
 function positionFrameEl(p, el) {
   el.style.left = (p.x - p.w / 2) + 'px';
@@ -476,18 +479,14 @@ function positionFrameEl(p, el) {
   el.classList.toggle('selected', p.pid === selectedPid);
   const pItem = itemOf(p);
   el.classList.toggle('alpha', !!(pItem && pItem.alpha));
+  layoutFrameUi();
 }
 function buildFrameEl(p) {
   const el = document.createElement('div');
   el.className = 'frame';
   el.dataset.pid = p.pid;
+  /* ツールバー・拡縮ハンドル・トリミングの✓/✕は画面固定レイヤー（#frameUi）側に一組だけある */
   el.innerHTML = '<img draggable="false" alt="">' +
-    '<div class="toolbar"><div class="toolbar-inner">' +
-    '<div class="tbtn act-dup" title="複製">⧉</div>' +
-    '<div class="tbtn act-crop" title="トリミング">✂</div>' +
-    '<div class="tbtn act-open" title="詳細">…</div>' +
-    '<div class="tbtn del act-del" title="削除">✕</div>' +
-    '</div></div>' +
     '<div class="crop-mask">' +
     '<div class="crop-mask-overlay crop-mask-top"></div>' +
     '<div class="crop-mask-overlay crop-mask-bottom"></div>' +
@@ -496,20 +495,8 @@ function buildFrameEl(p) {
     '<div class="crop-area">' +
     '<div class="crop-handle nw"></div><div class="crop-handle ne"></div>' +
     '<div class="crop-handle sw"></div><div class="crop-handle se"></div>' +
-    '</div></div>' +
-    '<div class="crop-controls"><div class="crop-controls-inner">' +
-    '<div class="tbtn apply act-crop-apply" title="適用">✓</div>' +
-    '<div class="tbtn del act-crop-cancel" title="キャンセル">✕</div>' +
-    '</div></div>' +
-    '<div class="handle"></div>';
+    '</div></div>';
   el.addEventListener('pointerdown', onFramePointerDown);
-  el.querySelector('.handle').addEventListener('pointerdown', onHandlePointerDown);
-  el.querySelector('.act-del').addEventListener('click', (e) => { e.stopPropagation(); deletePlacementFlow(p.pid); });
-  el.querySelector('.act-dup').addEventListener('click', (e) => { e.stopPropagation(); duplicatePlacement(p.pid); });
-  el.querySelector('.act-crop').addEventListener('click', (e) => { e.stopPropagation(); startCrop(p.pid); });
-  el.querySelector('.act-open').addEventListener('click', (e) => { e.stopPropagation(); openDetail(p.itemId); });
-  el.querySelector('.act-crop-apply').addEventListener('click', (e) => { e.stopPropagation(); applyCrop(p.pid); });
-  el.querySelector('.act-crop-cancel').addEventListener('click', (e) => { e.stopPropagation(); cancelCrop(p.pid); });
   el.querySelector('.crop-area').addEventListener('pointerdown', (e) => onCropAreaPointerDown(e, p.pid));
   el.querySelectorAll('.crop-handle').forEach(h => {
     const type = h.classList.contains('nw') ? 'nw' : h.classList.contains('ne') ? 'ne' : h.classList.contains('sw') ? 'sw' : 'se';
@@ -551,25 +538,64 @@ function onFramePointerDown(e) {
   el.addEventListener('pointerup', onDragEnd, { once: true });
   el.addEventListener('pointercancel', onDragEnd, { once: true });
 }
-function onHandlePointerDown(e) {
+/* ---------- 画面固定のフレームUI（#frameUi）の配置と操作 ---------- */
+const selToolbar = document.getElementById('selToolbar');
+const cropControlsEl = document.getElementById('cropControls');
+const resizeHandle = document.getElementById('resizeHandle');
+function layoutFrameUi() {
+  let target = null, mode = null;
+  if (cropState) { target = placementByPid(cropState.pid); mode = 'crop'; }
+  else if (selectedPid) { target = placementByPid(selectedPid); mode = 'sel'; }
+  if (!target) {
+    selToolbar.classList.remove('on');
+    cropControlsEl.classList.remove('on');
+    resizeHandle.classList.remove('on');
+    return;
+  }
+  const r = viewport.getBoundingClientRect();
+  const cxS = (target.x - camera.cx) * camera.scale + r.width / 2;
+  const cyS = (target.y - camera.cy) * camera.scale + r.height / 2;
+  const right = cxS + target.w * camera.scale / 2;
+  const bottom = cyS + target.h * camera.scale / 2;
+  if (mode === 'crop') {
+    selToolbar.classList.remove('on');
+    resizeHandle.classList.remove('on');
+    cropControlsEl.classList.add('on');
+    cropControlsEl.style.left = cxS + 'px';
+    cropControlsEl.style.top = (bottom + 8) + 'px';
+  } else {
+    cropControlsEl.classList.remove('on');
+    selToolbar.classList.add('on');
+    resizeHandle.classList.add('on');
+    selToolbar.style.left = cxS + 'px';
+    selToolbar.style.top = (bottom + 8) + 'px';
+    resizeHandle.style.left = (right - 12) + 'px';
+    resizeHandle.style.top = (bottom - 12) + 'px';
+  }
+}
+resizeHandle.addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   e.preventDefault();
-  const el = e.target.closest('.frame');
-  const p = placementByPid(el.dataset.pid);
+  if (!selectedPid || cropState) return;
+  const p = placementByPid(selectedPid);
   if (!p) return;
-  if (cropState) cancelCrop(cropState.pid);
-  selectPlacement(p.pid);
   const startWorld = screenToWorld(e.clientX, e.clientY);
   dragState = {
     mode: 'resize', pid: p.pid, pointerId: e.pointerId,
     anchorX: p.x - p.w / 2, anchorY: p.y - p.h / 2,
     grabDX: startWorld.x - (p.x + p.w / 2), grabDY: startWorld.y - (p.y + p.h / 2)
   };
-  e.target.setPointerCapture(e.pointerId);
-  e.target.addEventListener('pointermove', onDragMove);
-  e.target.addEventListener('pointerup', onDragEnd, { once: true });
-  e.target.addEventListener('pointercancel', onDragEnd, { once: true });
-}
+  resizeHandle.setPointerCapture(e.pointerId);
+  resizeHandle.addEventListener('pointermove', onDragMove);
+  resizeHandle.addEventListener('pointerup', onDragEnd, { once: true });
+  resizeHandle.addEventListener('pointercancel', onDragEnd, { once: true });
+});
+selToolbar.querySelector('.act-dup').addEventListener('click', () => { if (selectedPid) duplicatePlacement(selectedPid); });
+selToolbar.querySelector('.act-crop').addEventListener('click', () => { if (selectedPid) startCrop(selectedPid); });
+selToolbar.querySelector('.act-open').addEventListener('click', () => { const p = selectedPid ? placementByPid(selectedPid) : null; if (p) openDetail(p.itemId); });
+selToolbar.querySelector('.act-del').addEventListener('click', () => { if (selectedPid) deletePlacementFlow(selectedPid); });
+cropControlsEl.querySelector('.act-crop-apply').addEventListener('click', () => { if (cropState) applyCrop(cropState.pid); });
+cropControlsEl.querySelector('.act-crop-cancel').addEventListener('click', () => { if (cropState) cancelCrop(cropState.pid); });
 function onDragMove(e) {
   if (!dragState || e.pointerId !== dragState.pointerId) return;
   const p = placementByPid(dragState.pid);
@@ -612,6 +638,7 @@ const pointers = new Map();
 let panState = null, pinchState = null;
 let tapCandidate = null;   // 選択されていない画像への「軽いタップ」候補
 viewport.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('#frameUi')) return;   /* 画面固定UIの上はキャンバス操作にしない */
   const frameEl = e.target.closest('.frame');
   if (frameEl) {
     const fp = placementByPid(frameEl.dataset.pid);
