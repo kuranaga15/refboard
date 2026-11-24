@@ -101,7 +101,7 @@
   /* ボード切り替えタブ（上部に吸着。作った数だけ幅を等分する） */
   #tabbar {
     position: fixed; left: 0; top: 0; width: 100%; z-index: 80;
-    display: flex; gap: 6px; padding: calc(8px + env(safe-area-inset-top)) 10px 8px;
+    display: flex; gap: 6px; padding: env(safe-area-inset-top) 10px 0;
     background: rgba(24,24,28,.92); transform-origin: 0 0; box-sizing: border-box;
   }
   .btab {
@@ -111,7 +111,7 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
   }
   /* アクティブタブはタブバーの下端まで伸ばして、見ているページの見出しのように見せる（kura指定） */
-  .btab.on { background: #6f6f76; color: #fff; font-weight: 600; border-radius: 8px 8px 0 0; margin-bottom: -8px; }
+  .btab.on { background: #6f6f76; color: #fff; font-weight: 600; border-radius: 8px 8px 0 0; }
   /* 範囲選択ボタンと複数選択まわり */
   #rangeBtn svg { width: 19px; height: 19px; display: block; pointer-events: none; }
   .bbtn.on { background: #54545e; border-color: #e8e8ec; }
