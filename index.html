@@ -135,6 +135,10 @@
   }
   /* トリミング（スケッチブックと同じ操作感：マスク＋四隅ハンドル＋✓/✕） */
   .frame.cropping { outline: 2px solid #3fbf72; outline-offset: 1px; }
+  /* フリーフォーム切り取り（なぞった軌跡をその場で見せる） */
+  .frame.freeforming { outline: 2px solid #6f8dff; outline-offset: 1px; }
+  .free-svg { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 6; pointer-events: none; }
+  .free-poly { fill: rgba(111,141,255,.16); stroke: #6f8dff; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
   .crop-mask { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 4; }
   .frame.cropping .crop-mask { display: block; }
   .crop-mask-overlay { position: absolute; background: rgba(0,0,0,.55); }
@@ -221,6 +225,7 @@
     <div id="selToolbar">
       <div class="tbtn act-dup" title="複製"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></div>
       <div class="tbtn act-crop" title="トリミング"><img class="ticon" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAEnklEQVR4nO3dUUvrSBjG8Xlnkta2Vjhi5eCFIsIiC3u14oWXfgk/pJd+Cr3Y2xUWEVkKu624rNG2ySQze3F2lnK2OLVNpunb5wflgM1ppv2bpCZtIgQAAAAAAAAAlIKIhBBCdLtd6vf7v2itx2maJlmWvU/fJpPJ31mWvV9cXHSFEEIptdJxcxKFmAkRiWazuR1F0das+621hoikUkqGGM8mCfaCWmvtv/+aGfeZ6WmgPFhimENg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZs57NEnKxX8HiEhYa+d+DCIiKaWQUgruxx2M+d8xl0p4A5cxkPF4bGcdRfpemqa5MSbYk18l98tfNW/g4+PjhY8ZExFZa+329naklIp90x8dHX0ZDAZpFEVUFAXLRZiIKM9z2+/386Ioqp+fb4I0TZNlZuAO5sdx3CaiD9fVWuuRMSb3Tbeu3Gvx/Pz82+np6c9Jktiql2Tv0tloNLYrm/t34jhuh5rXKm1tbe24jzNVzRt4nm3nPOZZKsuaV125JbgoCh1qnt7AIVeXXFfN04hIhnye7F/QTYfAzGEbXIE6bWqwDWbOG/jt7e3PZWdCRNRut/d8Acfj8UvId5hVUErFrVZrd9XjcLyBT05ODhZ9cPdHfLfbVXd3d7/u7u6euD8VpqczxuRSyujq6urH29vboVJKhNjLUyY35vPz897Nzc0f7jmtelzeAQwGg6W3i0mSGGOMt9hwOHwvY36rNBwO31c9hmnzbIMXfnC3BDcajbkeJI5jRURinZfgOI5r9T5innfRS83AWjv3Y9hvPvV/6qKu467VbxuUD4GZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOZWfrrbafSNcLd18tlxl/U8fefGrFVgrXVhrRV5nq96KJ/mxqy1nut0yFmW2RAnL61V4F6v19nf3x+t8+mEe71exzetlFIdHBzESZIUy175zHd+7UrXg27wOzs79PDwcL+3t/fDrDO+O5tySn9rrRmNRs+2hMW32+1+/ej+Wi3BdbrWQZWISHY6nf0Q86pV4E26rE6o51qrwJt0WZ1Qz3VjXtBNhcDMBVtFW2uNu4Wa56ps5DZYKRWHvrRqnYV6HYIEttaKyWTyugmXcJdSRr4rmVtrjdZ6FGJMQXb4EpE4PDyMoigiY0y9LixUEqUU5Xluz87Ovl5fX/8+69J2bifPy8vLw+Xl5U+vr6+aiGiZHR6Pj48f7tcNtgQ/PT2t3w7mBfR6vb980xRFoe/v78dpmlY+nmDbYClZrpX/4/ZFN5tN5ZuWiGSr1SKttV12X7QxH79XCxbYN5B1R0TCGDN3LGOMMMaIZQP78F6sAIG5Q2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQQumfuu0awPNbifUcAvXtXqY7Mc5Hlusix7c5/umL7P/SxN07eqv5MEAAAAAAAAsIn+AcVgA0hIUB5uAAAAAElFTkSuQmCC" alt="トリミング"></div>
+      <div class="tbtn act-free" title="フリーフォーム切り取り"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg></div>
       <div class="tbtn del act-del" title="削除"><span class="xgl">✕</span></div>
     </div>
     <div class="resize-handle" id="resizeHandleNW" data-corner="nw"></div>
@@ -629,6 +634,7 @@ function onFramePointerDown(e) {
   const p = placementByPid(el.dataset.pid);
   if (!p) return;
   if (el.classList.contains('cropping')) return;
+  if (el.classList.contains('freeforming')) return;
   if (rangeMode && multiSel.has(p.pid)) {
     /* 範囲選択で選ばれた画像のドラッグは、選択全体の移動にする */
     e.preventDefault();
@@ -642,6 +648,7 @@ function onFramePointerDown(e) {
     el.addEventListener('pointercancel', onGroupMoveEnd, { once: true });
     return;
   }
+  if (freeState && freeState.pid !== p.pid) endFreeform();
   if (cropState && cropState.pid !== p.pid) cancelCrop(cropState.pid);
   /* 選択は「軽いタップ」の時だけ（viewport側で判定）。選択されていない画像は
      ドラッグしても動かさない。パンやピンチで触れただけで変更しないため（2026-11-24 kura指定） */
@@ -686,6 +693,7 @@ function singleUiPid() {
 function layoutFrameUi() {
   let target = null, mode = 'none';
   if (cropState) { target = placementByPid(cropState.pid); mode = 'crop'; }
+  else if (freeState) { target = placementByPid(freeState.pid); mode = 'free'; }
   else { const sp = singleUiPid(); if (sp) { target = placementByPid(sp); mode = 'sel'; } }
   if (!target) mode = 'none';
   if (mode !== uiMode) {
@@ -711,6 +719,10 @@ function layoutFrameUi() {
     cropControlsEl.classList.add('on');
     cropControlsEl.style.left = right + 'px';
     cropControlsEl.style.top = (bottom + 8) + 'px';
+  } else if (mode === 'free') {
+    selToolbar.classList.remove('on');
+    resizeHandles.forEach(h => h.classList.remove('on'));
+    cropControlsEl.classList.remove('on');
   } else {
     cropControlsEl.classList.remove('on');
     selToolbar.classList.add('on');
@@ -901,6 +913,7 @@ resizeHandles.forEach(h => {
 });
 selToolbar.querySelector('.act-dup').addEventListener('click', () => { const sp = singleUiPid(); if (sp) duplicatePlacement(sp); });
 selToolbar.querySelector('.act-crop').addEventListener('click', () => { const sp = singleUiPid(); if (sp) startCrop(sp); });
+selToolbar.querySelector('.act-free').addEventListener('click', () => { const sp = singleUiPid(); if (sp) startFreeform(sp); });
 selToolbar.querySelector('.act-del').addEventListener('click', () => { const sp = singleUiPid(); if (sp) deletePlacementFlow(sp); });
 cropControlsEl.querySelector('.act-crop-apply').addEventListener('click', () => { if (cropState) applyCrop(cropState.pid); });
 cropControlsEl.querySelector('.act-crop-cancel').addEventListener('click', () => { if (cropState) cancelCrop(cropState.pid); });
@@ -949,6 +962,11 @@ let tapCandidate = null;   // 選択されていない画像への「軽いタ�
 let cropTapCandidate = null;   // トリミング範囲の外側へのタップ候補（離したら完了にする）
 viewport.addEventListener('pointerdown', (e) => {
   if (e.target.closest('#frameUi, #multiUi')) return;   /* 画面固定UIの上はキャンバス操作にしない */
+  /* フリーフォーム中に自分の画像以外へ触れたら、無かったことにして終わる */
+  if (freeState) {
+    const fEl = e.target.closest('.frame');
+    if (!fEl || fEl.dataset.pid !== freeState.pid) endFreeform();
+  }
   /* トリミング中、トリミング範囲の外側へのタップは「完了」として扱う（✓を押さなくてよい。kura指定）。
      別の画像へのタップは従来通りキャンセル側に倒すため、ここでは候補にしない */
   if (cropState) {
@@ -1536,6 +1554,193 @@ async function applyCrop(pid) {
   }
 }
 
+/* ================= フリーフォーム切り取り =================
+   指でなぞった形に切り抜く。パスは常に最初の点へ閉じ、離した時点で適用する。
+   形にならなかった時（点が少ない・小さすぎる・失敗）は無かったことにする（kura指定）。
+   線が指で隠れる問題は仕様として気にしない */
+let freeState = null;
+function startFreeform(pid) {
+  const p = placementByPid(pid);
+  if (!p) return;
+  if (cropState) cancelCrop(cropState.pid);
+  if (freeState) endFreeform();
+  selectPlacement(pid);
+  const el = frameEls.get(pid);
+  if (!el) return;
+  freeState = { pid, frameW: p.w, frameH: p.h, points: [], drawing: false, pointerId: null };
+  el.classList.add('freeforming');
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'free-svg');
+  svg.setAttribute('viewBox', '0 0 ' + p.w + ' ' + p.h);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  poly.setAttribute('class', 'free-poly');
+  svg.appendChild(poly);
+  el.appendChild(svg);
+  freeState.svg = svg;
+  freeState.poly = poly;
+  freeState.onDown = (e) => onFreePointerDown(e, pid);
+  freeState.onMove = (e) => onFreePointerMove(e, pid);
+  freeState.onUp = (e) => onFreePointerUp(e, pid);
+  el.addEventListener('pointerdown', freeState.onDown);
+  el.addEventListener('pointermove', freeState.onMove);
+  el.addEventListener('pointerup', freeState.onUp);
+  el.addEventListener('pointercancel', freeState.onUp);
+  layoutFrameUi();
+}
+function endFreeform() {
+  if (!freeState) return;
+  const el = frameEls.get(freeState.pid);
+  if (el) {
+    el.classList.remove('freeforming');
+    el.removeEventListener('pointerdown', freeState.onDown);
+    el.removeEventListener('pointermove', freeState.onMove);
+    el.removeEventListener('pointerup', freeState.onUp);
+    el.removeEventListener('pointercancel', freeState.onUp);
+    if (freeState.svg) freeState.svg.remove();
+  }
+  freeState = null;
+  layoutFrameUi();
+}
+function freeLocalPoint(e, p) {
+  const w = screenToWorld(e.clientX, e.clientY);
+  return {
+    x: clamp(w.x - (p.x - freeState.frameW / 2), 0, freeState.frameW),
+    y: clamp(w.y - (p.y - freeState.frameH / 2), 0, freeState.frameH)
+  };
+}
+function drawFreePoly() {
+  if (!freeState || !freeState.poly) return;
+  freeState.poly.setAttribute('points', freeState.points.map(pt => pt.x + ',' + pt.y).join(' '));
+}
+function onFreePointerDown(e, pid) {
+  if (!freeState || freeState.pid !== pid) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const p = placementByPid(pid);
+  if (!p) return;
+  freeState.drawing = true;
+  freeState.pointerId = e.pointerId;
+  freeState.points = [freeLocalPoint(e, p)];
+  const el = frameEls.get(pid);
+  if (el) { try { el.setPointerCapture(e.pointerId); } catch (err) {} }
+  drawFreePoly();
+}
+function onFreePointerMove(e, pid) {
+  if (!freeState || !freeState.drawing || e.pointerId !== freeState.pointerId) return;
+  const p = placementByPid(pid);
+  if (!p) return;
+  const pt = freeLocalPoint(e, p);
+  const last = freeState.points[freeState.points.length - 1];
+  if (!last || Math.hypot(pt.x - last.x, pt.y - last.y) >= 1.5) {
+    freeState.points.push(pt);
+    if (freeState.points.length > 2000) freeState.points.splice(1, 200);
+    drawFreePoly();
+  }
+}
+async function onFreePointerUp(e, pid) {
+  if (!freeState || freeState.pid !== pid || !freeState.drawing) return;
+  if (e.pointerId !== freeState.pointerId) return;
+  freeState.drawing = false;
+  if (e.type === 'pointercancel') { endFreeform(); return; }
+  const pts = freeState.points;
+  if (pts.length < 3) { endFreeform(); return; }   /* 形にならなかった */
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const pt of pts) {
+    minX = Math.min(minX, pt.x); maxX = Math.max(maxX, pt.x);
+    minY = Math.min(minY, pt.y); maxY = Math.max(maxY, pt.y);
+  }
+  const bbox = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  if (bbox.w < 4 || bbox.h < 4) { endFreeform(); return; }   /* 小さすぎる */
+  await applyFreeform(pid, pts, bbox);
+}
+async function applyFreeform(pid, pts, bbox) {
+  const p = placementByPid(pid);
+  const d = freeState;
+  if (!p || !d) return;
+  const item = itemOf(p);
+  if (!item) { endFreeform(); return; }
+  let blob = null;
+  try { blob = await idbGet('blobs', item.id + ':file'); } catch (e) {}
+  if (!blob) {
+    await imageURL(item, 'file');
+    try { blob = await idbGet('blobs', item.id + ':file'); } catch (e) {}
+  }
+  if (!blob) { endFreeform(); return; }
+  try {
+    const loaded = await loadImageFromBlob(blob);
+    try {
+      const kx = item.w / d.frameW, ky = item.h / d.frameH;
+      const bwPx = Math.max(1, Math.round(bbox.w * kx));
+      const bhPx = Math.max(1, Math.round(bbox.h * ky));
+      const canvas = document.createElement('canvas');
+      canvas.width = bwPx; canvas.height = bhPx;
+      const ctx = canvas.getContext('2d');
+      ctx.beginPath();
+      pts.forEach((pt, i) => {
+        const px = (pt.x - bbox.x) * kx, py = (pt.y - bbox.y) * ky;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(loaded.img, bbox.x * kx, bbox.y * ky, bbox.w * kx, bbox.h * ky, 0, 0, bwPx, bhPx);
+      const toBlobQ = (cv, q) => new Promise(res => {
+        cv.toBlob(b => {
+          if (b && (b.type === 'image/webp' || b.type === 'image/png')) return res(b);
+          cv.toBlob(b2 => res(b2), 'image/png');
+        }, 'image/webp', q);
+      });
+      const mainBlob = await toBlobQ(canvas, 0.82);
+      if (!mainBlob) throw new Error('freeform failed');
+      const ext = mainBlob.type === 'image/png' ? 'png' : 'webp';
+      const ts = Math.min(1, THUMB_MAX / Math.max(bwPx, bhPx));
+      const tc = document.createElement('canvas');
+      tc.width = Math.max(1, Math.round(bwPx * ts)); tc.height = Math.max(1, Math.round(bhPx * ts));
+      tc.getContext('2d').drawImage(canvas, 0, 0, tc.width, tc.height);
+      const thumbBlob = await toBlobQ(tc, 0.75);
+      if (!thumbBlob) throw new Error('thumb failed');
+      const hash = await sha256Hex(await mainBlob.arrayBuffer());
+      const id = makeId();
+      const ym = id.slice(0, 4) + '/' + id.slice(4, 6);
+      const newItem = {
+        id,
+        file: 'images/' + ym + '/' + id + '.' + ext,
+        thumb: 'thumbs/' + ym + '/' + id + '.' + ext,
+        w: bwPx, h: bhPx, hash,
+        memo: item.memo || '', sourceUrl: item.sourceUrl || '',
+        alpha: true,
+        createdAt: new Date().toISOString()
+      };
+      await idbSet('blobs', id + ':file', mainBlob);
+      await idbSet('blobs', id + ':thumb', thumbBlob);
+      items.set(id, newItem);
+      pendingUploadIds.add(id);
+      const oldItemId = p.itemId;
+      p.x = (p.x - d.frameW / 2) + bbox.x + bbox.w / 2;
+      p.y = (p.y - d.frameH / 2) + bbox.y + bbox.h / 2;
+      p.w = bbox.w; p.h = bbox.h;
+      p.itemId = id;
+      p.u = Date.now();
+      if (oldItemId !== id && !placements.some(q => q.itemId === oldItemId)) {
+        deletedItemIds.add(oldItemId);
+        items.delete(oldItemId);
+        pendingUploadIds.delete(oldItemId);
+        try { await idbDel('blobs', oldItemId + ':file'); await idbDel('blobs', oldItemId + ':thumb'); } catch (e) {}
+        for (const k of [oldItemId + ':file', oldItemId + ':thumb']) {
+          if (urlCache.has(k)) { URL.revokeObjectURL(urlCache.get(k)); urlCache.delete(k); }
+        }
+      }
+      endFreeform();
+      metaDirty = true;
+      renderAll();
+      await saveLocal();
+      scheduleSync();
+    } finally { URL.revokeObjectURL(loaded.url); }
+  } catch (e) {
+    endFreeform();   /* 失敗したら無かったことにする */
+  }
+}
+
 /* ================= 詳細 ================= */
 const detailEl = document.getElementById('detail');
 const detailImg = document.getElementById('detailImg');
@@ -1920,7 +2125,7 @@ window.addEventListener('online', () => scheduleSync());
 let lastPullAt = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
-  if (cropState) return;
+  if (cropState || freeState) return;
   const now = Date.now();
   if (now - lastPullAt < 5000) return;
   lastPullAt = now;
