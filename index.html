@@ -129,6 +129,10 @@
     pointer-events: auto; display: none;
   }
   #resizeHandle.on { display: block; }
+  /* ハンドルのタップ範囲だけを少し広げる（見た目は変えない。kura指定で直径+10%） */
+  #resizeHandle::after, #groupHandle::after, .crop-handle::after {
+    content: ''; position: absolute; inset: -5%; border-radius: 50%;
+  }
   /* トリミング（スケッチブックと同じ操作感：マスク＋四隅ハンドル＋✓/✕） */
   .frame.cropping { outline: 2px solid #3fbf72; outline-offset: 1px; }
   .crop-mask { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 4; }
@@ -1210,6 +1214,12 @@ async function importFiles(files, anchor) {
       metaDirty = true;
       await saveLocal();
       renderAll();
+      /* 取り込んだ画像は全部、投げ縄で選んだ時と同じ複数選択状態にする
+         （迷子防止と、すぐそのまま移動できるように。kura指定） */
+      selectPlacement(null);
+      if (!rangeMode) { rangeMode = true; rangeBtn.classList.add('on'); }
+      multiSel = new Set(prepared.map(p => 'p-' + p.item.id));
+      refreshMultiClasses();
     }
     /* 完了ポップアップは出さない（kura指定）。失敗と「取り込める画像なし」の時だけ知らせる */
     if (failed) toast(failed + '枚は取り込めなかったよ');
