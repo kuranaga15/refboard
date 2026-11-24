@@ -19,6 +19,7 @@
     display: flex; align-items: center; gap: 8px; padding: 0 10px;
     background: rgba(30,30,34,.92); border-bottom: 1px solid rgba(255,255,255,.08);
     padding-top: env(safe-area-inset-top); height: calc(52px + env(safe-area-inset-top));
+    transform-origin: 0 0;
   }
   #header .title { font-size: 15px; font-weight: 600; letter-spacing: .04em; margin-right: auto; }
   #syncBtn { position: relative; }
@@ -38,7 +39,7 @@
   #importBtn { background: #4a6cf7; border-color: #4a6cf7; font-size: 18px; font-weight: 700; width: 44px; }
   /* 「…」メニュー（たまにしか使わない機能の置き場所。今後増える機能もここへ入れる） */
   #menu {
-    position: fixed; top: calc(58px + env(safe-area-inset-top)); right: 10px; z-index: 150;
+    position: absolute; top: calc(100% + 6px); right: 10px; z-index: 150;
     background: rgba(28,28,33,.97); border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
     padding: 6px; display: none; min-width: 210px; box-shadow: 0 10px 30px rgba(0,0,0,.5);
   }
@@ -134,7 +135,7 @@
   #detailForm label { font-size: 11px; color: #99a; }
   #detailMemo, #detailSource {
     width: 100%; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15);
-    border-radius: 8px; color: #eee; padding: 8px 10px; font-size: 14px; font-family: inherit;
+    border-radius: 8px; color: #eee; padding: 8px 10px; font-size: 16px; font-family: inherit;
     -webkit-user-select: text; user-select: text;
   }
   #detailMemo { min-height: 56px; resize: vertical; }
@@ -151,9 +152,9 @@
   <button class="hbtn" id="syncBtn" title="GitHubと同期">同期<span id="syncBadge"></span></button>
   <button class="hbtn" id="menuBtn" title="メニュー">…</button>
   <button class="hbtn" id="importBtn" title="画像をインポート">＋</button>
-</div>
-<div id="menu">
-  <button class="mitem" id="menuKey">GH鍵（トークン設定）</button>
+  <div id="menu">
+    <button class="mitem" id="menuKey">GH鍵（トークン設定）</button>
+  </div>
 </div>
 <div id="viewport">
   <div id="world"></div>
@@ -1344,6 +1345,24 @@ async function syncNow(manual) {
 }
 function updateStatusLineSoon() { setTimeout(updateStatusLine, 1600); }
 document.getElementById('syncBtn').addEventListener('click', () => syncNow(true));
+/* ヘッダーを「見えている画面」の左上に固定する。
+   ページ全体がズームされたままの状態でも、visualViewportに追従して常に画面上部に出す */
+const headerEl = document.getElementById('header');
+function pinHeader() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const s = vv.scale || 1;
+  headerEl.style.width = (vv.width * s) + 'px';
+  headerEl.style.transform = 'translate(' + vv.offsetLeft + 'px,' + vv.offsetTop + 'px) scale(' + (1 / s) + ')';
+}
+if (window.visualViewport) {
+  visualViewport.addEventListener('resize', pinHeader);
+  visualViewport.addEventListener('scroll', pinHeader);
+}
+window.addEventListener('orientationchange', () => setTimeout(pinHeader, 60));
+window.addEventListener('load', pinHeader);
+pinHeader();
+
 /* 「…」メニュー */
 const menuEl = document.getElementById('menu');
 document.getElementById('menuBtn').addEventListener('click', (e) => {
