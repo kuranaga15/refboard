@@ -104,6 +104,8 @@
     transform: translateX(-50%);
   }
   #selToolbar.on, #cropControls.on { display: flex; }
+  /* トリミングの✓/✕は右手操作前提で、画像の右端に吸着させる */
+  #cropControls { transform: translateX(-100%); }
   #resizeHandle {
     position: absolute; width: 14px; height: 14px; border-radius: 50%;
     background: #6f8dff; border: 2px solid #fff; cursor: nwse-resize; touch-action: none;
@@ -198,8 +200,8 @@
     </div>
     <div id="resizeHandle"></div>
     <div id="cropControls">
-      <div class="tbtn apply act-crop-apply" title="適用">✓</div>
       <div class="tbtn del act-crop-cancel" title="キャンセル"><span class="xgl">✕</span></div>
+      <div class="tbtn apply act-crop-apply" title="適用">✓</div>
     </div>
   </div>
   <div id="selRect"></div>
@@ -651,7 +653,7 @@ function layoutFrameUi() {
     selToolbar.classList.remove('on');
     resizeHandle.classList.remove('on');
     cropControlsEl.classList.add('on');
-    cropControlsEl.style.left = cxS + 'px';
+    cropControlsEl.style.left = right + 'px';
     cropControlsEl.style.top = (bottom + 8) + 'px';
   } else {
     cropControlsEl.classList.remove('on');
@@ -1169,11 +1171,9 @@ async function importFiles(files, anchor) {
       await saveLocal();
       renderAll();
     }
-    const msgs = [];
-    if (prepared.length) msgs.push(prepared.length + '枚取り込んだよ');
-    if (dup) msgs.push(dup + '枚は重複でスキップ');
-    if (failed) msgs.push(failed + '枚は失敗');
-    toast(msgs.join('、') || '取り込める画像がなかったよ');
+    /* 完了ポップアップは出さない（kura指定）。失敗と「取り込める画像なし」の時だけ知らせる */
+    if (failed) toast(failed + '枚は取り込めなかったよ');
+    else if (!prepared.length && !dup) toast('取り込める画像がなかったよ');
     if (prepared.length) scheduleSync();
   } finally {
     importing = false;
@@ -1229,7 +1229,6 @@ async function deletePlacementFlow(pid) {
   nudgeRepaint();
   saveLocal();
   scheduleSync();
-  toast('削除したよ');
 }
 
 /* ================= トリミング（スケッチブックと同じ操作感） =================
@@ -1420,7 +1419,6 @@ async function applyCrop(pid) {
       renderAll();
       await saveLocal();
       scheduleSync();
-      toast('トリミングしたよ');
     } finally { URL.revokeObjectURL(loaded.url); }
   } catch (e) {
     toast('トリミングに失敗したよ…');
@@ -1454,7 +1452,6 @@ document.getElementById('detailSave').addEventListener('click', async () => {
     metaDirty = true;
     await saveLocal();
     scheduleSync();
-    toast('保存したよ');
   }
   closeDetail();
 });
@@ -1475,7 +1472,6 @@ document.getElementById('detailDelete').addEventListener('click', async () => {
   nudgeRepaint();
   await saveLocal();
   scheduleSync();
-  toast('削除したよ');
 });
 
 /* ================= 同期（pull-merge-push） ================= */
@@ -1639,8 +1635,7 @@ document.addEventListener('pointerdown', (e) => {
 });
 document.getElementById('menuKey').addEventListener('click', () => {
   menuEl.classList.remove('open');
-  const t = askToken();
-  if (t) { toast('トークンを保存したよ。「同期」ボタンで同期してね'); }
+  askToken();
   updateStatusLine();
 });
 const rangeBtn = document.getElementById('rangeBtn');
