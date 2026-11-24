@@ -57,7 +57,7 @@
   #multiUi { position: absolute; inset: 0; z-index: 55; pointer-events: none; }
   #groupBox { position: absolute; display: none; border: 1.5px solid #6f8dff; pointer-events: none; }
   #groupHandle {
-    position: absolute; width: 24px; height: 24px; border-radius: 50%;
+    position: absolute; width: 14px; height: 14px; border-radius: 50%;
     background: #6f8dff; border: 2px solid #fff; cursor: nwse-resize; touch-action: none;
     pointer-events: auto; display: none;
   }
@@ -105,7 +105,7 @@
   }
   #selToolbar.on, #cropControls.on { display: flex; }
   #resizeHandle {
-    position: absolute; width: 24px; height: 24px; border-radius: 50%;
+    position: absolute; width: 14px; height: 14px; border-radius: 50%;
     background: #6f8dff; border: 2px solid #fff; cursor: nwse-resize; touch-action: none;
     pointer-events: auto; display: none;
   }
@@ -563,6 +563,7 @@ let rangeMode = false;          // 範囲選択モード中か
 let multiSel = new Set();       // 範囲選択で選ばれた配置のpid
 let rangeDrag = null;           // 範囲ドラッグ中 {pointerId, x0, y0, moved}
 let groupDrag = null;           // グループ拡縮中 {pointerId, anchorX, anchorY, bboxW, grabDX, grabDY, orig}
+let groupMove = null;           // グループ移動中 {pointerId, startX, startY, orig}
 function clearMultiSel() {
   if (!multiSel.size) return;
   multiSel.clear();
@@ -579,6 +580,19 @@ function onFramePointerDown(e) {
   const p = placementByPid(el.dataset.pid);
   if (!p) return;
   if (el.classList.contains('cropping')) return;
+  if (rangeMode && multiSel.has(p.pid)) {
+    /* 範囲選択で選ばれた画像のドラッグは、選択全体の移動にする */
+    e.preventDefault();
+    const start = screenToWorld(e.clientX, e.clientY);
+    const orig = new Map();
+    for (const pid2 of multiSel) { const q = placementByPid(pid2); if (q) orig.set(pid2, { x: q.x, y: q.y }); }
+    groupMove = { pointerId: e.pointerId, startX: start.x, startY: start.y, orig };
+    el.setPointerCapture(e.pointerId);
+    el.addEventListener('pointermove', onGroupMove);
+    el.addEventListener('pointerup', onGroupMoveEnd, { once: true });
+    el.addEventListener('pointercancel', onGroupMoveEnd, { once: true });
+    return;
+  }
   if (cropState && cropState.pid !== p.pid) cancelCrop(cropState.pid);
   /* 選択は「軽いタップ」の時だけ（viewport側で判定）。選択されていない画像は
      ドラッグしても動かさない。パンやピンチで触れただけで変更しないため（2026-11-24 kura指定） */
@@ -645,8 +659,8 @@ function layoutFrameUi() {
     resizeHandle.classList.add('on');
     selToolbar.style.left = cxS + 'px';
     selToolbar.style.top = (bottom + 8) + 'px';
-    resizeHandle.style.left = (right - 12) + 'px';
-    resizeHandle.style.top = (bottom - 12) + 'px';
+    resizeHandle.style.left = (right - 7) + 'px';
+    resizeHandle.style.top = (bottom - 7) + 'px';
   }
   layoutMultiUi();
 }
@@ -703,9 +717,7 @@ function onGroupResizeMove(e) {
   }
   layoutMultiUi();
 }
-async function onGroupDragEnd(e) {
-  if (!groupDrag) return;
-  groupDrag = null;
+async function settleMultiDrag() {
   for (const pid of multiSel) {
     const p = placementByPid(pid);
     if (p) { p.u = Date.now(); const el = frameEls.get(pid); if (el) refreshFrameImage(p, el); }
@@ -714,6 +726,30 @@ async function onGroupDragEnd(e) {
   await saveLocal();
   scheduleSync();
   nudgeRepaint();
+}
+async function onGroupDragEnd(e) {
+  if (!groupDrag) return;
+  groupDrag = null;
+  await settleMultiDrag();
+}
+function onGroupMove(e) {
+  if (!groupMove || e.pointerId !== groupMove.pointerId) return;
+  const now = screenToWorld(e.clientX, e.clientY);
+  const dx = now.x - groupMove.startX, dy = now.y - groupMove.startY;
+  for (const [pid, o] of groupMove.orig) {
+    const p = placementByPid(pid);
+    if (!p) continue;
+    p.x = o.x + dx;
+    p.y = o.y + dy;
+    const el = frameEls.get(pid);
+    if (el) positionFrameEl(p, el);
+  }
+  layoutMultiUi();
+}
+async function onGroupMoveEnd(e) {
+  if (!groupMove) return;
+  groupMove = null;
+  await settleMultiDrag();
 }
 /* 複数選択中は、選択全体を囲う四角と右下ハンドル、下部中央に✕を1つ出す */
 const groupBoxEl = document.getElementById('groupBox');
@@ -738,8 +774,8 @@ function layoutMultiUi() {
   groupBoxEl.style.width = w + 'px';
   groupBoxEl.style.height = h + 'px';
   groupHandleEl.style.display = 'block';
-  groupHandleEl.style.left = (left + w - 12) + 'px';
-  groupHandleEl.style.top = (top + h - 12) + 'px';
+  groupHandleEl.style.left = (left + w - 7) + 'px';
+  groupHandleEl.style.top = (top + h - 7) + 'px';
   groupDelEl.style.display = 'flex';
   groupDelEl.style.left = (left + w / 2) + 'px';
   groupDelEl.style.top = (top + h + 8) + 'px';
@@ -830,6 +866,10 @@ let tapCandidate = null;   // 選択されていない画像への「軽いタ�
 viewport.addEventListener('pointerdown', (e) => {
   if (e.target.closest('#frameUi, #multiUi')) return;   /* 画面固定UIの上はキャンバス操作にしない */
   if (rangeMode) {
+    if (groupMove || groupDrag) return;   /* グループ操作中は投げ縄・ピンチを始めない */
+    const frameEl0 = e.target.closest('.frame');
+    const fp0 = frameEl0 ? placementByPid(frameEl0.dataset.pid) : null;
+    if (fp0 && multiSel.has(fp0.pid)) return;   /* 選択済み画像はフレーム側でグループ移動する */
     e.preventDefault();
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     viewport.setPointerCapture(e.pointerId);
