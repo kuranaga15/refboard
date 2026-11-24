@@ -11,6 +11,7 @@
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
     background: #2b2b30; color: #eee;
     -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent;
   }
   #header {
@@ -38,6 +39,8 @@
   #viewport {
     position: fixed; left: 0; right: 0; bottom: 0; top: calc(52px + env(safe-area-inset-top));
     overflow: hidden; touch-action: none; cursor: grab;
+    --inv-scale: 1;
+    -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
   }
   #world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
   .frame {
@@ -45,18 +48,59 @@
     background: #3a3a40; border-radius: 4px;
     box-shadow: 0 4px 18px rgba(0,0,0,.45);
   }
-  .frame img { width: 100%; height: 100%; display: block; border-radius: 4px; pointer-events: none; object-fit: fill; }
+  .frame img { width: 100%; height: 100%; display: block; border-radius: 4px; pointer-events: none; object-fit: fill; -webkit-user-drag: none; -webkit-touch-callout: none; }
   .frame.selected { outline: 2px solid #6f8dff; outline-offset: 1px; }
   .frame .handle {
     position: absolute; right: -11px; bottom: -11px; width: 24px; height: 24px; border-radius: 50%;
     background: #6f8dff; border: 2px solid #fff; display: none; cursor: nwse-resize; touch-action: none; z-index: 5;
+    transform: scale(var(--inv-scale, 1));
   }
   .frame.selected .handle { display: block; }
+  /* 画像下のUIはズームに依らず画面上で固定サイズにする（2026-11-24 kura指定）。
+     外側で位置だけ決め、内側を 1/scale で逆拡大して見た目の大きさを保つ */
   .frame .toolbar {
-    position: absolute; left: 50%; bottom: -42px; transform: translateX(-50%);
-    display: none; gap: 6px; z-index: 6;
+    position: absolute; left: 50%; bottom: calc(-8px * var(--inv-scale, 1) - 34px);
+    transform: translateX(-50%);
+    display: none; z-index: 60;
   }
-  .frame.selected .toolbar { display: flex; }
+  .frame.selected .toolbar { display: block; }
+  .toolbar-inner {
+    display: flex; gap: 6px;
+    transform: scale(var(--inv-scale, 1)); transform-origin: top center;
+  }
+  /* トリミング（スケッチブックと同じ操作感：マスク＋四隅ハンドル＋✓/✕） */
+  .frame.cropping { outline: 2px solid #3fbf72; outline-offset: 1px; }
+  .frame.cropping .handle, .frame.cropping .toolbar { display: none !important; }
+  .crop-mask { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 4; }
+  .frame.cropping .crop-mask { display: block; }
+  .crop-mask-overlay { position: absolute; background: rgba(0,0,0,.55); }
+  .crop-mask-top { top: 0; left: 0; right: 0; }
+  .crop-mask-bottom { bottom: 0; left: 0; right: 0; }
+  .crop-mask-left { left: 0; }
+  .crop-mask-right { right: 0; }
+  .crop-area {
+    position: absolute; border: 2px solid #3fbf72; box-sizing: border-box;
+    cursor: move; pointer-events: auto; touch-action: none;
+  }
+  .crop-handle {
+    position: absolute; width: 16px; height: 16px; border-radius: 50%;
+    background: #fff; border: 2px solid #3fbf72; pointer-events: auto;
+    z-index: 5; touch-action: none; transform: scale(var(--inv-scale, 1));
+  }
+  .crop-handle.nw { left: -8px; top: -8px; cursor: nwse-resize; }
+  .crop-handle.ne { right: -8px; top: -8px; cursor: nesw-resize; }
+  .crop-handle.sw { left: -8px; bottom: -8px; cursor: nesw-resize; }
+  .crop-handle.se { right: -8px; bottom: -8px; cursor: nwse-resize; }
+  .crop-controls {
+    position: absolute; left: 50%; bottom: calc(-8px * var(--inv-scale, 1) - 34px);
+    transform: translateX(-50%); display: none; z-index: 60;
+  }
+  .frame.cropping .crop-controls { display: block; }
+  .crop-controls-inner {
+    display: flex; gap: 6px;
+    transform: scale(var(--inv-scale, 1)); transform-origin: top center;
+  }
+  .tbtn.apply { background: #2f9e5f; border-color: #2f9e5f; color: #fff; }
   .tbtn {
     width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25);
     background: rgba(25,25,30,.92); color: #eee; font-size: 15px; cursor: pointer;
@@ -325,6 +369,7 @@ async function imageURL(item, kind) {
 function applyCamera() {
   const r = viewport.getBoundingClientRect();
   world.style.transform = 'translate(' + (r.width / 2) + 'px,' + (r.height / 2) + 'px) scale(' + camera.scale + ') translate(' + (-camera.cx) + 'px,' + (-camera.cy) + 'px)';
+  viewport.style.setProperty('--inv-scale', String(1 / camera.scale));
   const grid = 64 * camera.scale;
   viewport.style.backgroundImage =
     'linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px)';
@@ -357,11 +402,12 @@ async function refreshFrameImage(p, el) {
   const item = itemOf(p);
   if (!item) return;
   const kind = desiredKind(p);
-  if (el.dataset.kind === kind && el.dataset.loaded === '1') return;
+  if (el.dataset.itemId === item.id && el.dataset.kind === kind && el.dataset.loaded === '1') return;
   const url = await imageURL(item, kind);
   if (!url) return;
   const img = el.querySelector('img');
   img.src = url;
+  el.dataset.itemId = item.id;
   el.dataset.kind = kind;
   el.dataset.loaded = '1';
 }
@@ -385,7 +431,8 @@ function positionFrameEl(p, el) {
   el.style.top = (p.y - p.h / 2) + 'px';
   el.style.width = p.w + 'px';
   el.style.height = p.h + 'px';
-  el.style.zIndex = p.z || 20;
+  /* 選択中・トリミング中のフレームは最前面へ（画像下UIが他の画像に隠れないように） */
+  el.style.zIndex = (p.pid === selectedPid || (cropState && cropState.pid === p.pid)) ? 100000 : (p.z || 20);
   el.style.transform = 'rotate(' + (p.angle || 0) + 'deg)';
   el.classList.toggle('selected', p.pid === selectedPid);
 }
@@ -394,17 +441,40 @@ function buildFrameEl(p) {
   el.className = 'frame';
   el.dataset.pid = p.pid;
   el.innerHTML = '<img draggable="false" alt="">' +
-    '<div class="toolbar">' +
+    '<div class="toolbar"><div class="toolbar-inner">' +
     '<div class="tbtn act-dup" title="複製">⧉</div>' +
+    '<div class="tbtn act-crop" title="トリミング">✂</div>' +
     '<div class="tbtn act-open" title="詳細">…</div>' +
     '<div class="tbtn del act-del" title="削除">✕</div>' +
-    '</div><div class="handle"></div>';
+    '</div></div>' +
+    '<div class="crop-mask">' +
+    '<div class="crop-mask-overlay crop-mask-top"></div>' +
+    '<div class="crop-mask-overlay crop-mask-bottom"></div>' +
+    '<div class="crop-mask-overlay crop-mask-left"></div>' +
+    '<div class="crop-mask-overlay crop-mask-right"></div>' +
+    '<div class="crop-area">' +
+    '<div class="crop-handle nw"></div><div class="crop-handle ne"></div>' +
+    '<div class="crop-handle sw"></div><div class="crop-handle se"></div>' +
+    '</div></div>' +
+    '<div class="crop-controls"><div class="crop-controls-inner">' +
+    '<div class="tbtn apply act-crop-apply" title="適用">✓</div>' +
+    '<div class="tbtn del act-crop-cancel" title="キャンセル">✕</div>' +
+    '</div></div>' +
+    '<div class="handle"></div>';
   el.addEventListener('pointerdown', onFramePointerDown);
   el.querySelector('.handle').addEventListener('pointerdown', onHandlePointerDown);
   el.querySelector('.act-del').addEventListener('click', (e) => { e.stopPropagation(); deletePlacementFlow(p.pid); });
   el.querySelector('.act-dup').addEventListener('click', (e) => { e.stopPropagation(); duplicatePlacement(p.pid); });
+  el.querySelector('.act-crop').addEventListener('click', (e) => { e.stopPropagation(); startCrop(p.pid); });
   el.querySelector('.act-open').addEventListener('click', (e) => { e.stopPropagation(); openDetail(p.itemId); });
-  el.addEventListener('dblclick', (e) => { e.stopPropagation(); openDetail(p.itemId); });
+  el.querySelector('.act-crop-apply').addEventListener('click', (e) => { e.stopPropagation(); applyCrop(p.pid); });
+  el.querySelector('.act-crop-cancel').addEventListener('click', (e) => { e.stopPropagation(); cancelCrop(p.pid); });
+  el.querySelector('.crop-area').addEventListener('pointerdown', (e) => onCropAreaPointerDown(e, p.pid));
+  el.querySelectorAll('.crop-handle').forEach(h => {
+    const type = h.classList.contains('nw') ? 'nw' : h.classList.contains('ne') ? 'ne' : h.classList.contains('sw') ? 'sw' : 'se';
+    h.addEventListener('pointerdown', (e) => onCropHandlePointerDown(e, p.pid, type));
+  });
+  el.addEventListener('dblclick', (e) => { e.stopPropagation(); if (!el.classList.contains('cropping')) openDetail(p.itemId); });
   return el;
 }
 function selectPlacement(pid) {
@@ -417,11 +487,17 @@ function selectPlacement(pid) {
 
 /* ---------- フレーム移動 / リサイズ ---------- */
 let dragState = null;
+let cropState = null;   // {pid, x, y, w, h, frameW, frameH} フレーム内座標（ワールド単位）
+let cropDrag = null;
 function onFramePointerDown(e) {
   if (e.target.closest('.tbtn') || e.target.closest('.handle')) return;
   const el = e.currentTarget;
   const p = placementByPid(el.dataset.pid);
   if (!p) return;
+  if (el.classList.contains('cropping')) return;
+  if (cropState && cropState.pid !== p.pid) cancelCrop(cropState.pid);
+  /* ドラッグ中にiOSの拡大鏡（ズーム窓）や選択UIが出ないようにする */
+  e.preventDefault();
   selectPlacement(p.pid);
   p.z = ++zCounter;
   const start = screenToWorld(e.clientX, e.clientY);
@@ -433,11 +509,18 @@ function onFramePointerDown(e) {
 }
 function onHandlePointerDown(e) {
   e.stopPropagation();
+  e.preventDefault();
   const el = e.target.closest('.frame');
   const p = placementByPid(el.dataset.pid);
   if (!p) return;
+  if (cropState) cancelCrop(cropState.pid);
   selectPlacement(p.pid);
-  dragState = { mode: 'resize', pid: p.pid, startClientX: e.clientX, origW: p.w, pointerId: e.pointerId };
+  const startWorld = screenToWorld(e.clientX, e.clientY);
+  dragState = {
+    mode: 'resize', pid: p.pid, pointerId: e.pointerId,
+    anchorX: p.x - p.w / 2, anchorY: p.y - p.h / 2,
+    grabDX: startWorld.x - (p.x + p.w / 2), grabDY: startWorld.y - (p.y + p.h / 2)
+  };
   e.target.setPointerCapture(e.pointerId);
   e.target.addEventListener('pointermove', onDragMove);
   e.target.addEventListener('pointerup', onDragEnd, { once: true });
@@ -454,11 +537,15 @@ function onDragMove(e) {
     p.y = dragState.origY + (now.y - dragState.startY);
     dragState.moved = true;
   } else {
+    /* 拡縮は中心ではなく、掴んだ点の対角の角（左上）を固定して行う（2026-11-24 kura指定） */
     const item = itemOf(p);
     const ratio = item ? (item.h / item.w) : 1;
-    const dw = (e.clientX - dragState.startClientX) / camera.scale;
-    p.w = Math.max(40, dragState.origW + dw);
+    const now = screenToWorld(e.clientX, e.clientY);
+    const cornerX = now.x - dragState.grabDX;
+    p.w = Math.max(40, cornerX - dragState.anchorX);
     p.h = p.w * ratio;
+    p.x = dragState.anchorX + p.w / 2;
+    p.y = dragState.anchorY + p.h / 2;
   }
   if (el) positionFrameEl(p, el);
 }
@@ -481,6 +568,7 @@ const pointers = new Map();
 let panState = null, pinchState = null;
 viewport.addEventListener('pointerdown', (e) => {
   if (e.target.closest('.frame')) return;
+  e.preventDefault();
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   viewport.setPointerCapture(e.pointerId);
   if (pointers.size === 1) {
@@ -537,6 +625,9 @@ viewport.addEventListener('wheel', (e) => {
   clearTimeout(viewport._wz);
   viewport._wz = setTimeout(() => { saveLocal(); for (const p of placements) { const el = frameEls.get(p.pid); if (el) refreshFrameImage(p, el); } }, 200);
 }, { passive: false });
+/* 長押しの拡大鏡・コールアウト・ジェスチャーズームを抑止する */
+viewport.addEventListener('contextmenu', (e) => e.preventDefault());
+document.addEventListener('gesturestart', (e) => e.preventDefault());
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 </script>
 <script>
@@ -740,6 +831,184 @@ async function deletePlacementFlow(pid) {
   renderAll();
   scheduleSync();
   toast('削除したよ');
+}
+
+/* ================= トリミング（スケッチブックと同じ操作感） =================
+   適用すると切り抜いた画像が新しいitemになり、この配置だけ差し替わる。
+   他の配置が元のitemを使っていれば元画像は残る。 */
+function startCrop(pid) {
+  const p = placementByPid(pid);
+  if (!p) return;
+  if (cropState) cancelCrop(cropState.pid);
+  selectPlacement(pid);
+  const el = frameEls.get(pid);
+  if (!el) return;
+  cropState = { pid, x: p.w * 0.1, y: p.h * 0.1, w: p.w * 0.8, h: p.h * 0.8, frameW: p.w, frameH: p.h };
+  el.classList.add('cropping');
+  positionFrameEl(p, el);
+  updateCropMask(el);
+}
+function updateCropMask(el) {
+  const d = cropState;
+  if (!d) return;
+  const top = el.querySelector('.crop-mask-top');
+  const bottom = el.querySelector('.crop-mask-bottom');
+  const left = el.querySelector('.crop-mask-left');
+  const right = el.querySelector('.crop-mask-right');
+  const area = el.querySelector('.crop-area');
+  if (!top || !area) return;
+  top.style.height = d.y + 'px';
+  bottom.style.height = (d.frameH - d.y - d.h) + 'px';
+  left.style.top = d.y + 'px'; left.style.height = d.h + 'px'; left.style.width = d.x + 'px';
+  right.style.top = d.y + 'px'; right.style.height = d.h + 'px';
+  right.style.left = (d.x + d.w) + 'px'; right.style.width = (d.frameW - d.x - d.w) + 'px';
+  area.style.left = d.x + 'px'; area.style.top = d.y + 'px';
+  area.style.width = d.w + 'px'; area.style.height = d.h + 'px';
+}
+function endCropUi(pid) {
+  const el = frameEls.get(pid);
+  if (el) {
+    el.classList.remove('cropping');
+    const p = placementByPid(pid);
+    if (p) positionFrameEl(p, el);
+  }
+  cropState = null;
+  cropDrag = null;
+}
+function cancelCrop(pid) {
+  if (cropState && cropState.pid === pid) endCropUi(pid);
+}
+function onCropAreaPointerDown(e, pid) {
+  e.stopPropagation();
+  e.preventDefault();
+  if (!cropState || cropState.pid !== pid) return;
+  cropDrag = { mode: 'move', pid, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, x: cropState.x, y: cropState.y };
+  e.currentTarget.setPointerCapture(e.pointerId);
+  e.currentTarget.addEventListener('pointermove', onCropDragMove);
+  e.currentTarget.addEventListener('pointerup', onCropDragEnd, { once: true });
+  e.currentTarget.addEventListener('pointercancel', onCropDragEnd, { once: true });
+}
+function onCropHandlePointerDown(e, pid, type) {
+  e.stopPropagation();
+  e.preventDefault();
+  if (!cropState || cropState.pid !== pid) return;
+  cropDrag = { mode: 'resize', pid, type, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, x: cropState.x, y: cropState.y, w: cropState.w, h: cropState.h };
+  e.currentTarget.setPointerCapture(e.pointerId);
+  e.currentTarget.addEventListener('pointermove', onCropDragMove);
+  e.currentTarget.addEventListener('pointerup', onCropDragEnd, { once: true });
+  e.currentTarget.addEventListener('pointercancel', onCropDragEnd, { once: true });
+}
+function onCropDragMove(e) {
+  if (!cropDrag || e.pointerId !== cropDrag.pointerId || !cropState) return;
+  const d = cropState, s = cropDrag;
+  const dx = (e.clientX - s.startX) / camera.scale;
+  const dy = (e.clientY - s.startY) / camera.scale;
+  const MIN = 20;
+  if (s.mode === 'move') {
+    d.x = clamp(s.x + dx, 0, d.frameW - d.w);
+    d.y = clamp(s.y + dy, 0, d.frameH - d.h);
+  } else if (s.type === 'nw') {
+    d.x = clamp(s.x + dx, 0, s.x + s.w - MIN);
+    d.y = clamp(s.y + dy, 0, s.y + s.h - MIN);
+    d.w = s.w - (d.x - s.x); d.h = s.h - (d.y - s.y);
+  } else if (s.type === 'ne') {
+    d.y = clamp(s.y + dy, 0, s.y + s.h - MIN);
+    d.w = clamp(s.w + dx, MIN, d.frameW - s.x);
+    d.h = s.h - (d.y - s.y);
+  } else if (s.type === 'sw') {
+    d.x = clamp(s.x + dx, 0, s.x + s.w - MIN);
+    d.w = s.w - (d.x - s.x);
+    d.h = clamp(s.h + dy, MIN, d.frameH - s.y);
+  } else {
+    d.w = clamp(s.w + dx, MIN, d.frameW - s.x);
+    d.h = clamp(s.h + dy, MIN, d.frameH - s.y);
+  }
+  const el = frameEls.get(s.pid);
+  if (el) updateCropMask(el);
+}
+function onCropDragEnd(e) {
+  if (e.currentTarget) e.currentTarget.removeEventListener('pointermove', onCropDragMove);
+  cropDrag = null;
+}
+async function applyCrop(pid) {
+  const d = cropState;
+  const p = placementByPid(pid);
+  if (!d || !p || d.pid !== pid) return;
+  const item = itemOf(p);
+  if (!item) { cancelCrop(pid); return; }
+  let blob = null;
+  try { blob = await idbGet('blobs', item.id + ':file'); } catch (e) {}
+  if (!blob) {
+    await imageURL(item, 'file');
+    try { blob = await idbGet('blobs', item.id + ':file'); } catch (e) {}
+  }
+  if (!blob) { toast('元の画像が見つからなかったよ…'); return; }
+  try {
+    const loaded = await loadImageFromBlob(blob);
+    try {
+      const kx = item.w / d.frameW, ky = item.h / d.frameH;
+      const sx = clamp(Math.round(d.x * kx), 0, item.w - 1);
+      const sy = clamp(Math.round(d.y * ky), 0, item.h - 1);
+      const sw = Math.max(1, Math.min(item.w - sx, Math.round(d.w * kx)));
+      const sh = Math.max(1, Math.min(item.h - sy, Math.round(d.h * ky)));
+      const canvas = document.createElement('canvas');
+      canvas.width = sw; canvas.height = sh;
+      canvas.getContext('2d').drawImage(loaded.img, sx, sy, sw, sh, 0, 0, sw, sh);
+      const toBlobQ = (cv, q) => new Promise(res => {
+        cv.toBlob(b => {
+          if (b && b.type === 'image/webp') return res(b);
+          cv.toBlob(b2 => res(b2), 'image/jpeg', q);
+        }, 'image/webp', q);
+      });
+      const mainBlob = await toBlobQ(canvas, 0.82);
+      if (!mainBlob) throw new Error('crop failed');
+      const ext = mainBlob.type === 'image/webp' ? 'webp' : 'jpg';
+      const ts = Math.min(1, THUMB_MAX / Math.max(sw, sh));
+      const tc = document.createElement('canvas');
+      tc.width = Math.max(1, Math.round(sw * ts)); tc.height = Math.max(1, Math.round(sh * ts));
+      tc.getContext('2d').drawImage(canvas, 0, 0, tc.width, tc.height);
+      const thumbBlob = await toBlobQ(tc, 0.75);
+      if (!thumbBlob) throw new Error('thumb failed');
+      const hash = await sha256Hex(await mainBlob.arrayBuffer());
+      const id = makeId();
+      const ym = id.slice(0, 4) + '/' + id.slice(4, 6);
+      const newItem = {
+        id,
+        file: 'images/' + ym + '/' + id + '.' + ext,
+        thumb: 'thumbs/' + ym + '/' + id + '.' + ext,
+        w: sw, h: sh, hash,
+        memo: item.memo || '', sourceUrl: item.sourceUrl || '',
+        createdAt: new Date().toISOString()
+      };
+      await idbSet('blobs', id + ':file', mainBlob);
+      await idbSet('blobs', id + ':thumb', thumbBlob);
+      items.set(id, newItem);
+      pendingUploadIds.add(id);
+      const oldItemId = p.itemId;
+      p.x = (p.x - p.w / 2) + d.x + d.w / 2;
+      p.y = (p.y - p.h / 2) + d.y + d.h / 2;
+      p.w = d.w; p.h = d.h;
+      p.itemId = id;
+      p.u = Date.now();
+      if (oldItemId !== id && !placements.some(q => q.itemId === oldItemId)) {
+        deletedItemIds.add(oldItemId);
+        items.delete(oldItemId);
+        pendingUploadIds.delete(oldItemId);
+        try { await idbDel('blobs', oldItemId + ':file'); await idbDel('blobs', oldItemId + ':thumb'); } catch (e) {}
+        for (const k of [oldItemId + ':file', oldItemId + ':thumb']) {
+          if (urlCache.has(k)) { URL.revokeObjectURL(urlCache.get(k)); urlCache.delete(k); }
+        }
+      }
+      endCropUi(pid);
+      metaDirty = true;
+      await saveLocal();
+      renderAll();
+      scheduleSync();
+      toast('トリミングしたよ');
+    } finally { URL.revokeObjectURL(loaded.url); }
+  } catch (e) {
+    toast('トリミングに失敗したよ…');
+  }
 }
 
 /* ================= 詳細 ================= */
