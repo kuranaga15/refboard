@@ -110,7 +110,8 @@
     font-size: 13px; font-family: inherit; text-align: center;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
   }
-  .btab.on { background: #6f6f76; color: #fff; font-weight: 600; }
+  /* アクティブタブはタブバーの下端まで伸ばして、見ているページの見出しのように見せる（kura指定） */
+  .btab.on { background: #6f6f76; color: #fff; font-weight: 600; border-radius: 999px 999px 0 0; margin-bottom: -8px; }
   /* 範囲選択ボタンと複数選択まわり */
   #rangeBtn svg { width: 19px; height: 19px; display: block; pointer-events: none; }
   .bbtn.on { background: #54545e; border-color: #e8e8ec; }
