@@ -430,6 +430,19 @@ async function refreshFrameImage(p, el) {
   el.dataset.kind = kind;
   el.dataset.loaded = '1';
 }
+/* フレーム要素を確実に取り除く。
+   iOS Safariでは transform の付いた要素をそのまま消すと、画面にUIの残像が
+   残ることがあるため、変形を外し・非表示にして描画を確定させてから外す */
+function removeFrameEl(pid) {
+  const el = frameEls.get(pid);
+  if (!el) return;
+  el.style.display = 'none';
+  el.style.transform = 'none';
+  el.querySelectorAll('.toolbar, .toolbar-inner, .handle, .crop-controls, .crop-controls-inner, .crop-handle').forEach(n => { n.style.transform = 'none'; });
+  void el.offsetHeight;
+  el.remove();
+  frameEls.delete(pid);
+}
 function renderAll() {
   const alive = new Set();
   for (const p of placements) {
@@ -439,8 +452,8 @@ function renderAll() {
     positionFrameEl(p, el);
     refreshFrameImage(p, el);
   }
-  for (const [pid, el] of [...frameEls]) {
-    if (!alive.has(pid)) { el.remove(); frameEls.delete(pid); }
+  for (const [pid] of [...frameEls]) {
+    if (!alive.has(pid)) removeFrameEl(pid);
   }
   hintEl.style.display = placements.length ? 'none' : 'block';
   updateStatusLine();
@@ -895,8 +908,11 @@ async function deletePlacementFlow(pid) {
   }
   if (selectedPid === pid) selectedPid = null;
   metaDirty = true;
-  await saveLocal();
+  /* 画面の更新は保存の完了を待たずに先に行う。
+     保存（IndexedDB）を待ってから消すと、環境によってはUIが残り続けるため */
+  removeFrameEl(pid);
   renderAll();
+  await saveLocal();
   scheduleSync();
   toast('削除したよ');
 }
@@ -1073,8 +1089,8 @@ async function applyCrop(pid) {
       }
       endCropUi(pid);
       metaDirty = true;
-      await saveLocal();
       renderAll();
+      await saveLocal();
       scheduleSync();
       toast('トリミングしたよ');
     } finally { URL.revokeObjectURL(loaded.url); }
@@ -1125,9 +1141,11 @@ document.getElementById('detailDelete').addEventListener('click', async () => {
   items.delete(targetId);
   pendingUploadIds.delete(targetId);
   try { await idbDel('blobs', targetId + ':file'); await idbDel('blobs', targetId + ':thumb'); } catch (e) {}
+  if (all.includes(selectedPid)) selectedPid = null;
   metaDirty = true;
-  await saveLocal();
+  for (const one of all) removeFrameEl(one);
   renderAll();
+  await saveLocal();
   scheduleSync();
   toast('削除したよ');
 });
