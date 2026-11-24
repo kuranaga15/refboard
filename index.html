@@ -542,10 +542,29 @@ function onFramePointerDown(e) {
 const selToolbar = document.getElementById('selToolbar');
 const cropControlsEl = document.getElementById('cropControls');
 const resizeHandle = document.getElementById('resizeHandle');
+let uiMode = 'none';
+/* iOSでUIの残像が残らないよう、消える側のUIは「変形を外して描画を確定させる」
+   フラッシュを挟んでから消す（要素を消す時に効いたのと同じ手当て） */
+function flushHidden(el) {
+  if (!el) return;
+  el.style.opacity = '0';
+  el.style.visibility = 'hidden';
+  el.style.transform = 'none';
+  void el.offsetHeight;
+  el.style.opacity = '';
+  el.style.visibility = '';
+  el.style.transform = '';
+}
 function layoutFrameUi() {
-  let target = null, mode = null;
+  let target = null, mode = 'none';
   if (cropState) { target = placementByPid(cropState.pid); mode = 'crop'; }
   else if (selectedPid) { target = placementByPid(selectedPid); mode = 'sel'; }
+  if (!target) mode = 'none';
+  if (mode !== uiMode) {
+    if (uiMode === 'sel') { flushHidden(selToolbar); flushHidden(resizeHandle); }
+    if (uiMode === 'crop') { flushHidden(cropControlsEl); }
+    uiMode = mode;
+  }
   if (!target) {
     selToolbar.classList.remove('on');
     cropControlsEl.classList.remove('on');
@@ -981,13 +1000,25 @@ function updateCropMask(el) {
 }
 function endCropUi(pid) {
   const el = frameEls.get(pid);
+  /* cropStateを先に消す（残っているとUI配置がトリミング側のままになる） */
+  cropState = null;
+  cropDrag = null;
   if (el) {
+    /* トリミングのハンドル類は、変形を外して描画を確定させてから消す（残像対策） */
+    const mask = el.querySelector('.crop-mask');
+    if (mask) {
+      mask.style.display = 'none';
+      el.querySelectorAll('.crop-handle').forEach(n => { n.style.transform = 'none'; });
+      void el.offsetHeight;
+      requestAnimationFrame(() => {
+        mask.style.display = '';
+        el.querySelectorAll('.crop-handle').forEach(n => { n.style.transform = ''; });
+      });
+    }
     el.classList.remove('cropping');
     const p = placementByPid(pid);
     if (p) positionFrameEl(p, el);
   }
-  cropState = null;
-  cropDrag = null;
 }
 function cancelCrop(pid) {
   if (cropState && cropState.pid === pid) endCropUi(pid);
