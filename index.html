@@ -443,6 +443,13 @@ function removeFrameEl(pid) {
   el.remove();
   frameEls.delete(pid);
 }
+/* 削除直後にiOSの描画レイヤーが残ることがあるため、再描画を促す */
+function nudgeRepaint() {
+  requestAnimationFrame(() => {
+    applyCamera();
+    requestAnimationFrame(() => applyCamera());
+  });
+}
 function renderAll() {
   const alive = new Set();
   for (const p of placements) {
@@ -892,27 +899,23 @@ async function deletePlacementFlow(pid) {
   placements = placements.filter(q => q.pid !== pid);
   deletedPlacementIds.add(pid);
   if (!others.length) {
-    if (!confirm('この画像を削除しますか？\n（ボードからもデータからも消えます）')) {
-      deletedPlacementIds.delete(pid);
-      placements.push(p);
-      renderAll();
-      return;
-    }
+    /* 確認ダイアログは出さず、その場で即削除する（2026-11-24 kura決定）。
+       ダイアログを挟むとiOSでは画面の描画が固まり、UIの残像が残る一因にもなっていた */
     deletedItemIds.add(p.itemId);
     items.delete(p.itemId);
     pendingUploadIds.delete(p.itemId);
-    try { await idbDel('blobs', p.itemId + ':file'); await idbDel('blobs', p.itemId + ':thumb'); } catch (e) {}
+    idbDel('blobs', p.itemId + ':file').catch(() => {});
+    idbDel('blobs', p.itemId + ':thumb').catch(() => {});
     for (const k of [p.itemId + ':file', p.itemId + ':thumb']) {
       if (urlCache.has(k)) { URL.revokeObjectURL(urlCache.get(k)); urlCache.delete(k); }
     }
   }
   if (selectedPid === pid) selectedPid = null;
   metaDirty = true;
-  /* 画面の更新は保存の完了を待たずに先に行う。
-     保存（IndexedDB）を待ってから消すと、環境によってはUIが残り続けるため */
   removeFrameEl(pid);
   renderAll();
-  await saveLocal();
+  nudgeRepaint();
+  saveLocal();
   scheduleSync();
   toast('削除したよ');
 }
@@ -1133,7 +1136,6 @@ document.getElementById('detailSave').addEventListener('click', async () => {
 document.getElementById('detailDelete').addEventListener('click', async () => {
   const targetId = detailItemId;
   if (!targetId) { closeDetail(); return; }
-  if (!confirm('この画像を削除しますか？\n（ボードからもデータからも消えます）')) return;
   closeDetail();
   const all = placements.filter(p => p.itemId === targetId).map(p => p.pid);
   for (const one of all) { placements = placements.filter(q => q.pid !== one); deletedPlacementIds.add(one); }
@@ -1145,6 +1147,7 @@ document.getElementById('detailDelete').addEventListener('click', async () => {
   metaDirty = true;
   for (const one of all) removeFrameEl(one);
   renderAll();
+  nudgeRepaint();
   await saveLocal();
   scheduleSync();
   toast('削除したよ');
