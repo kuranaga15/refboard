@@ -55,6 +55,8 @@
   html.canvas-light .bbtn { color: #2b2b30; }
   html.canvas-light #importBtn { color: #fff; }
   html.canvas-light .bbtn.on { color: #fff; }
+  /* ライトモードではタブバーの地色もキャンバスの背景色に合わせる（kura指定） */
+  html.canvas-light #tabbar { background: var(--canvas-bg); }
   /* ライトモードのタブは反転させる: 非アクティブ=グレーの地に白文字、アクティブ=白の地に濃い文字（kura指定） */
   html.canvas-light .btab { background: #6f6f76; color: #fff; }
   html.canvas-light .btab.on { background: #ffffff; color: #2b2b30; }
