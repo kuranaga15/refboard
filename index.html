@@ -41,6 +41,22 @@
     width: 100%; height: 42px; margin-top: 8px; border: none; border-radius: 9px;
     background: #4a6cf7; color: #fff; font-size: 15px; font-family: inherit; cursor: pointer;
   }
+  .set-modes {
+    display: flex; gap: 3px; background: rgba(255,255,255,.08);
+    border-radius: 10px; padding: 3px; margin: 10px 0 4px;
+  }
+  .set-modes button {
+    flex: 1; height: 34px; border: none; border-radius: 8px; background: transparent;
+    color: #a5a5ad; font-size: 14px; font-family: inherit; cursor: pointer;
+  }
+  .set-modes button.on { background: #6f6f76; color: #fff; font-weight: 600; }
+  /* 背景が明るい色の時は、右側4ボタンのアイコンをダークモードの背景色（#2b2b30）にして見えるようにする（kura指定）。
+     画像アイコン（目・同期）はJS側でその色に塗り直す */
+  html.canvas-light .bbtn { color: #2b2b30; }
+  html.canvas-light #importBtn { color: #fff; }
+  html.canvas-light .bbtn.on { color: #fff; }
+  html.canvas-light .btab { color: #62626c; }
+  html.canvas-light #hint { color: #83838d; }
   /* 下部バー: ヘッダーを廃止し、独立ボタンを画面下に置く（2026-11-24 kura指定のモック再現）。
      バー自体はタッチを受けず、ボタンだけが受ける */
   #bottombar {
@@ -100,7 +116,7 @@
   }
   #multiUi { position: absolute; inset: 0; z-index: 55; pointer-events: none; }
   #groupBox { position: absolute; display: none; border: 1.5px solid #6f8dff; pointer-events: none; }
-  #groupHandle {
+  .group-handle {
     position: absolute; width: 14px; height: 14px; border-radius: 50%;
     background: #6f8dff; border: 2px solid #fff; cursor: nwse-resize; touch-action: none;
     pointer-events: auto; display: none;
@@ -157,7 +173,7 @@
   }
   .resize-handle.on { display: block; }
   /* ハンドルのタップ範囲だけを大きく広げる（見た目は変えない。kura指定で直径+90%） */
-  .resize-handle::after, #groupHandle::after, .crop-handle::after {
+  .resize-handle::after, .group-handle::after, .crop-handle::after {
     content: ''; position: absolute; inset: -45%; border-radius: 50%;
   }
   /* トリミング（スケッチブックと同じ操作感：マスク＋四隅ハンドル＋✓/✕） */
@@ -250,6 +266,10 @@
 <div id="settingsModal">
   <div class="set-panel">
     <div class="set-title">設定</div>
+    <div class="set-modes">
+      <button id="modeDark">ダークモード</button>
+      <button id="modeLight">ライトモード</button>
+    </div>
     <label class="set-row"><span>背景色</span><input type="color" id="setBg" value="#2b2b30"></label>
     <label class="set-row"><span>グリッドの色</span><input type="color" id="setGrid" value="#ffffff"></label>
     <button id="setDone">完了</button>
@@ -274,7 +294,7 @@
     </div>
   </div>
   <div id="selRect"></div>
-  <div id="multiUi"><div id="groupBox"></div><div id="groupHandle"></div><div class="tbtn del" id="groupDel" title="選択を削除"><span class="xgl">✕</span></div></div>
+  <div id="multiUi"><div id="groupBox"></div><div class="group-handle" data-corner="nw"></div><div class="group-handle" data-corner="ne"></div><div class="group-handle" data-corner="sw"></div><div class="group-handle" data-corner="se"></div><div class="tbtn del" id="groupDel" title="選択を削除"><span class="xgl">✕</span></div></div>
   <div id="hint">左下の ＋ から画像を取り込んでね<br>ドラッグで移動、ピンチで拡大縮小だよ</div>
 </div>
 <div id="detail">
@@ -523,14 +543,22 @@ function refreshGridRGBA() {
   const n = parseInt(gridHex.slice(1), 16);
   gridLineRGBA = 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',.05)';
 }
+function updateCanvasLightClass() {
+  const n = parseInt(canvasBg.slice(1), 16);
+  const lum = 0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255);
+  document.documentElement.classList.toggle('canvas-light', lum > 150);
+}
 function applyCanvasColors() {
   document.documentElement.style.setProperty('--canvas-bg', canvasBg);
   refreshGridRGBA();
+  updateCanvasLightClass();
+  if (typeof refreshIconColors === 'function') refreshIconColors();
   try { localStorage.setItem('refboard-colors', JSON.stringify({ bg: canvasBg, grid: gridHex })); } catch (e) {}
   applyCamera();
 }
 document.documentElement.style.setProperty('--canvas-bg', canvasBg);
 refreshGridRGBA();
+updateCanvasLightClass();
 
 /* ---------- カメラ / 座標 ---------- */
 function applyCamera() {
@@ -840,8 +868,8 @@ function multiBounds() {
 function onGroupResizeMove(e) {
   if (!groupDrag || e.pointerId !== groupDrag.pointerId) return;
   const now = screenToWorld(e.clientX, e.clientY);
-  /* 単一画像の拡縮と同じく、掴んだ点の対角の角（左上）を固定して引っ張る */
-  const newW = Math.max(40, (now.x - groupDrag.grabDX) - groupDrag.anchorX);
+  /* 単一画像の拡縮と同じく、掴んだ角の対角を固定して引っ張る */
+  const newW = Math.max(40, ((now.x - groupDrag.grabDX) - groupDrag.anchorX) * groupDrag.sx);
   const f = newW / groupDrag.bboxW;
   for (const [pid, o] of groupDrag.orig) {
     const p = placementByPid(pid);
@@ -900,7 +928,7 @@ async function onGroupMoveEnd(e) {
 }
 /* 複数選択中は、選択全体を囲う四角と右下ハンドル、下部中央に✕を1つ出す */
 const groupBoxEl = document.getElementById('groupBox');
-const groupHandleEl = document.getElementById('groupHandle');
+const groupHandles = [...document.querySelectorAll('.group-handle')];
 const groupDelEl = document.getElementById('groupDel');
 function layoutMultiUi() {
   if (!multiUi) return;
@@ -909,7 +937,7 @@ function layoutMultiUi() {
   const b = (multiSel.size && !soloCovered) ? multiBounds() : null;
   if (!b) {
     groupBoxEl.style.display = 'none';
-    groupHandleEl.style.display = 'none';
+    groupHandles.forEach(h => h.style.display = 'none');
     groupDelEl.style.display = 'none';
     return;
   }
@@ -922,27 +950,41 @@ function layoutMultiUi() {
   groupBoxEl.style.top = top + 'px';
   groupBoxEl.style.width = w + 'px';
   groupBoxEl.style.height = h + 'px';
-  groupHandleEl.style.display = 'block';
-  groupHandleEl.style.left = (left + w - 7) + 'px';
-  groupHandleEl.style.top = (top + h - 7) + 'px';
+  groupHandles.forEach(h => {
+    const c = h.dataset.corner;
+    h.style.display = 'block';
+    h.style.left = ((c.includes('e') ? left + w : left) - 7) + 'px';
+    h.style.top = ((c.includes('s') ? top + h : top) - 7) + 'px';
+  });
   groupDelEl.style.display = 'flex';
   groupDelEl.style.left = (left + w / 2) + 'px';
   groupDelEl.style.top = (top + h + 8) + 'px';
 }
-groupHandleEl.addEventListener('pointerdown', (e) => {
-  e.stopPropagation();
-  e.preventDefault();
-  const b = multiBounds();
-  if (!b) return;
-  const startW = screenToWorld(e.clientX, e.clientY);
-  const orig = new Map();
-  for (const pid of multiSel) { const q = placementByPid(pid); if (q) orig.set(pid, { x: q.x, y: q.y, w: q.w, h: q.h }); }
-  beginDragHistory([...orig.keys()].map(id => placementByPid(id)).filter(Boolean));
-  groupDrag = { pointerId: e.pointerId, anchorX: b.minX, anchorY: b.minY, bboxW: b.w, orig, grabDX: startW.x - b.maxX, grabDY: startW.y - b.maxY };
-  groupHandleEl.setPointerCapture(e.pointerId);
-  groupHandleEl.addEventListener('pointermove', onGroupResizeMove);
-  groupHandleEl.addEventListener('pointerup', onGroupDragEnd, { once: true });
-  groupHandleEl.addEventListener('pointercancel', onGroupDragEnd, { once: true });
+/* グループ拡縮ハンドルは四隅4つ。単体と同じく、掴んだ角の対角を固定する（kura指定） */
+groupHandles.forEach(h => {
+  h.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const b = multiBounds();
+    if (!b) return;
+    const c = h.dataset.corner;
+    const sx = c.includes('e') ? 1 : -1;
+    const sy = c.includes('s') ? 1 : -1;
+    const startW = screenToWorld(e.clientX, e.clientY);
+    const orig = new Map();
+    for (const pid of multiSel) { const q = placementByPid(pid); if (q) orig.set(pid, { x: q.x, y: q.y, w: q.w, h: q.h }); }
+    beginDragHistory([...orig.keys()].map(id => placementByPid(id)).filter(Boolean));
+    groupDrag = {
+      pointerId: e.pointerId, sx, sy,
+      anchorX: sx === 1 ? b.minX : b.maxX, anchorY: sy === 1 ? b.minY : b.maxY,
+      bboxW: b.w, orig,
+      grabDX: startW.x - (sx === 1 ? b.maxX : b.minX), grabDY: startW.y - (sy === 1 ? b.maxY : b.minY)
+    };
+    h.setPointerCapture(e.pointerId);
+    h.addEventListener('pointermove', onGroupResizeMove);
+    h.addEventListener('pointerup', onGroupDragEnd, { once: true });
+    h.addEventListener('pointercancel', onGroupDragEnd, { once: true });
+  });
 });
 groupDelEl.addEventListener('click', async () => {
   const pids = [...multiSel];
@@ -2378,6 +2420,7 @@ document.getElementById('menuSettings').addEventListener('click', () => {
   setGridInput.value = gridHex;
   settingsModal.classList.add('open');
   pinSettings();
+  refreshModeButtons();
 });
 document.getElementById('setDone').addEventListener('click', () => {
   canvasBg = setBgInput.value;
@@ -2388,6 +2431,49 @@ document.getElementById('setDone').addEventListener('click', () => {
 settingsModal.addEventListener('pointerdown', (e) => {
   if (e.target === settingsModal) settingsModal.classList.remove('open');   /* 外側タップは変えずに閉じる */
 });
+/* ダーク／ライトの切り替え（プリセット。押した時点で反映する） */
+const modeDarkBtn = document.getElementById('modeDark');
+const modeLightBtn = document.getElementById('modeLight');
+function refreshModeButtons() {
+  modeDarkBtn.classList.toggle('on', canvasBg.toLowerCase() === '#2b2b30' && gridHex.toLowerCase() === '#ffffff');
+  modeLightBtn.classList.toggle('on', canvasBg.toLowerCase() === '#ebebeb' && gridHex.toLowerCase() === '#000000');
+}
+function applyMode(bg, grid) {
+  canvasBg = bg; gridHex = grid;
+  setBgInput.value = bg; setGridInput.value = grid;
+  applyCanvasColors();
+  refreshModeButtons();
+}
+modeDarkBtn.addEventListener('click', () => applyMode('#2b2b30', '#ffffff'));
+modeLightBtn.addEventListener('click', () => applyMode('#EBEBEB', '#000000'));
+/* 画像アイコン（目・同期）は白い字形のPNGなので、ライトな背景の時は
+   ダークモードの背景色（#2b2b30）に塗り直した版に差し替える（kura指定） */
+function recolorIcon(img, color) {
+  if (img.dataset.origSrc === undefined) img.dataset.origSrc = img.src;
+  if (!img.dataset.darkSrc) {
+    if (!img.naturalWidth) return;
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, c.width, c.height);
+    img.dataset.darkSrc = c.toDataURL();
+  }
+  img.src = img.dataset.darkSrc;
+}
+function refreshIconColors() {
+  const light = document.documentElement.classList.contains('canvas-light');
+  for (const img of document.querySelectorAll('#fitBtn img, #syncBtn img')) {
+    if (light) recolorIcon(img, '#2b2b30');
+    else if (img.dataset.origSrc) img.src = img.dataset.origSrc;
+  }
+}
+for (const img of document.querySelectorAll('#fitBtn img, #syncBtn img')) {
+  if (img.complete && img.naturalWidth) refreshIconColors();
+  else img.addEventListener('load', refreshIconColors, { once: true });
+}
 
 const rangeBtn = document.getElementById('rangeBtn');
 rangeBtn.addEventListener('click', () => {
