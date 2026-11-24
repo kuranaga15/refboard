@@ -1843,6 +1843,19 @@ document.getElementById('fitBtn').addEventListener('click', () => {
 });
 window.addEventListener('online', () => scheduleSync());
 
+/* 画面が前面に戻ってきたら、読み込みだけ自動でやり直す（コミットはしない）。
+   スリープ解除やアプリ切り替えのたびに、他の端末の更新分が入るようにするため。
+   トリミング中は描き直しで崩れるので見送る。短時間の連打も抑える */
+let lastPullAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (cropState) return;
+  const now = Date.now();
+  if (now - lastPullAt < 5000) return;
+  lastPullAt = now;
+  pullOnly();
+});
+
 /* 起動時は読み込みだけ（マージのみ、コミットはしない） */
 async function pullOnly() {
   if (!getToken() || syncing) return;
