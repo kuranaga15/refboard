@@ -794,15 +794,16 @@ document.getElementById('detailDelete').addEventListener('click', async () => {
 
 /* ================= 同期（pull-merge-push） ================= */
 let syncing = false, syncTimer = null;
+/* 同期は「同期」ボタンを押した時だけ行う（2026-11-24 kura決定）。
+   変更時はステータス表示を更新するだけで、自動送信はしない。 */
 function scheduleSync() {
-  clearTimeout(syncTimer);
-  syncTimer = setTimeout(() => syncNow(false), 1200);
+  updateStatusLine();
 }
 function updateStatusLine() {
   if (syncing) return setStatus('同期中…');
   if (!getToken()) return setStatus('GH鍵が未設定だよ（この端末の中だけに保存中）');
-  if (pendingUploadIds.size) return setStatus('送信待ち ' + pendingUploadIds.size + '件');
-  if (metaDirty) return setStatus('未同期の変更があるよ');
+  if (pendingUploadIds.size) return setStatus('未送信 ' + pendingUploadIds.size + '件（同期ボタンで送信）');
+  if (metaDirty) return setStatus('未同期の変更があるよ（同期ボタンで送信）');
   setStatus('同期済み');
 }
 function mergeData(remoteIndex, remoteBoards) {
@@ -906,7 +907,7 @@ function updateStatusLineSoon() { setTimeout(updateStatusLine, 1600); }
 document.getElementById('syncBtn').addEventListener('click', () => syncNow(true));
 document.getElementById('keyBtn').addEventListener('click', () => {
   const t = askToken();
-  if (t) { toast('トークンを保存したよ'); syncNow(true); }
+  if (t) { toast('トークンを保存したよ。「同期」ボタンで同期してね'); }
   updateStatusLine();
 });
 document.getElementById('fitBtn').addEventListener('click', () => {
@@ -926,13 +927,26 @@ document.getElementById('fitBtn').addEventListener('click', () => {
 });
 window.addEventListener('online', () => scheduleSync());
 
+/* 起動時は読み込みだけ（マージのみ、コミットはしない） */
+async function pullOnly() {
+  if (!getToken() || syncing) return;
+  try {
+    const remoteIndex = await ghFetchJson('data/index.json');
+    const remoteBoards = await ghFetchJson('data/boards.json');
+    mergeData(remoteIndex, remoteBoards);
+    await saveLocal();
+    renderAll();
+  } catch (e) {}
+  updateStatusLine();
+}
+
 /* ================= 起動 ================= */
 (async function init() {
   await loadLocal();
   applyCamera();
   renderAll();
   updateStatusLine();
-  if (getToken()) syncNow(false);
+  if (getToken()) pullOnly();
 })();
 </script>
 </body>
