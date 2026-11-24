@@ -51,11 +51,17 @@
   #rangeBtn svg { width: 19px; height: 19px; display: block; pointer-events: none; }
   .bbtn.on { background: #54545e; border-color: #e8e8ec; }
   #selRect {
-    position: absolute; display: none; z-index: 60; pointer-events: none;
-    border: 1.5px dashed #9db4ff; background: rgba(111,141,255,.13);
+    position: absolute; display: none; z-index: 70; pointer-events: none;
+    border: 2px dashed #9d9da6; background: transparent; box-sizing: border-box;
   }
   #multiUi { position: absolute; inset: 0; z-index: 55; pointer-events: none; }
-  .mdel { position: absolute; transform: translateX(-50%); pointer-events: auto; }
+  #groupBox { position: absolute; display: none; border: 1.5px solid #6f8dff; pointer-events: none; }
+  #groupHandle {
+    position: absolute; width: 24px; height: 24px; border-radius: 50%;
+    background: #6f8dff; border: 2px solid #fff; cursor: nwse-resize; touch-action: none;
+    pointer-events: auto; display: none;
+  }
+  #groupDel { position: absolute; transform: translateX(-50%); pointer-events: auto; display: none; }
   .frame.multi { outline: 2px solid #6f8dff; outline-offset: 1px; }
   /* 「…」メニュー（たまにしか使わない機能の置き場所。今後増える機能もここへ入れる） */
   #menu {
@@ -197,7 +203,7 @@
     </div>
   </div>
   <div id="selRect"></div>
-  <div id="multiUi"></div>
+  <div id="multiUi"><div id="groupBox"></div><div id="groupHandle"></div><div class="tbtn del" id="groupDel" title="選択を削除"><span class="xgl">✕</span></div></div>
   <div id="hint">左下の ＋ から画像を取り込んでね<br>ドラッグで移動、ピンチで拡大縮小だよ</div>
 </div>
 <div id="detail">
@@ -556,7 +562,7 @@ let cropDrag = null;
 let rangeMode = false;          // 範囲選択モード中か
 let multiSel = new Set();       // 範囲選択で選ばれた配置のpid
 let rangeDrag = null;           // 範囲ドラッグ中 {pointerId, x0, y0, moved}
-let groupDrag = null;           // グループ拡縮中 {pointerId, cx, cy, startDist, orig}
+let groupDrag = null;           // グループ拡縮中 {pointerId, anchorX, anchorY, bboxW, grabDX, grabDY, orig}
 function clearMultiSel() {
   if (!multiSel.size) return;
   multiSel.clear();
@@ -573,21 +579,6 @@ function onFramePointerDown(e) {
   const p = placementByPid(el.dataset.pid);
   if (!p) return;
   if (el.classList.contains('cropping')) return;
-  if (rangeMode && multiSel.has(p.pid)) {
-    /* 範囲選択で選ばれた画像のドラッグは、選択全体の拡縮にする */
-    e.preventDefault();
-    const c = multiBoundsCenter();
-    if (!c) return;
-    const startW = screenToWorld(e.clientX, e.clientY);
-    const orig = new Map();
-    for (const pid2 of multiSel) { const q = placementByPid(pid2); if (q) orig.set(pid2, { x: q.x, y: q.y, w: q.w, h: q.h }); }
-    groupDrag = { pointerId: e.pointerId, cx: c.x, cy: c.y, startDist: Math.max(10, Math.hypot(startW.x - c.x, startW.y - c.y)), orig };
-    el.setPointerCapture(e.pointerId);
-    el.addEventListener('pointermove', onGroupDragMove);
-    el.addEventListener('pointerup', onGroupDragEnd, { once: true });
-    el.addEventListener('pointercancel', onGroupDragEnd, { once: true });
-    return;
-  }
   if (cropState && cropState.pid !== p.pid) cancelCrop(cropState.pid);
   /* 選択は「軽いタップ」の時だけ（viewport側で判定）。選択されていない画像は
      ドラッグしても動かさない。パンやピンチで触れただけで変更しないため（2026-11-24 kura指定） */
@@ -683,7 +674,7 @@ function finishRangeSelect(x0, y0, x1, y1) {
   }
   refreshMultiClasses();
 }
-function multiBoundsCenter() {
+function multiBounds() {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, n = 0;
   for (const pid of multiSel) {
     const p = placementByPid(pid);
@@ -692,18 +683,19 @@ function multiBoundsCenter() {
     minX = Math.min(minX, p.x - p.w / 2); maxX = Math.max(maxX, p.x + p.w / 2);
     minY = Math.min(minY, p.y - p.h / 2); maxY = Math.max(maxY, p.y + p.h / 2);
   }
-  return n ? { x: (minX + maxX) / 2, y: (minY + maxY) / 2 } : null;
+  return n ? { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY } : null;
 }
-function onGroupDragMove(e) {
+function onGroupResizeMove(e) {
   if (!groupDrag || e.pointerId !== groupDrag.pointerId) return;
   const now = screenToWorld(e.clientX, e.clientY);
-  const d = Math.hypot(now.x - groupDrag.cx, now.y - groupDrag.cy);
-  const f = clamp(d / groupDrag.startDist, 0.05, 20);
+  /* 単一画像の拡縮と同じく、掴んだ点の対角の角（左上）を固定して引っ張る */
+  const newW = Math.max(40, (now.x - groupDrag.grabDX) - groupDrag.anchorX);
+  const f = newW / groupDrag.bboxW;
   for (const [pid, o] of groupDrag.orig) {
     const p = placementByPid(pid);
     if (!p) continue;
-    p.x = groupDrag.cx + (o.x - groupDrag.cx) * f;
-    p.y = groupDrag.cy + (o.y - groupDrag.cy) * f;
+    p.x = groupDrag.anchorX + (o.x - groupDrag.anchorX) * f;
+    p.y = groupDrag.anchorY + (o.y - groupDrag.anchorY) * f;
     p.w = Math.max(10, o.w * f);
     p.h = Math.max(10, o.h * f);
     const el = frameEls.get(pid);
@@ -723,34 +715,52 @@ async function onGroupDragEnd(e) {
   scheduleSync();
   nudgeRepaint();
 }
-/* 複数選択中は、各画像の下に✕だけを出す（画面固定レイヤーに配置） */
+/* 複数選択中は、選択全体を囲う四角と右下ハンドル、下部中央に✕を1つ出す */
+const groupBoxEl = document.getElementById('groupBox');
+const groupHandleEl = document.getElementById('groupHandle');
+const groupDelEl = document.getElementById('groupDel');
 function layoutMultiUi() {
   if (!multiUi) return;
-  if (!multiSel.size) { if (multiUi.childElementCount) multiUi.innerHTML = ''; return; }
-  const r = viewport.getBoundingClientRect();
-  const seen = new Set();
-  for (const pid of multiSel) {
-    const p = placementByPid(pid);
-    if (!p) continue;
-    seen.add(pid);
-    let b = multiUi.querySelector('[data-pid="' + pid + '"]');
-    if (!b) {
-      b = document.createElement('div');
-      b.className = 'tbtn del mdel';
-      b.dataset.pid = pid;
-      b.innerHTML = '<span class="xgl">✕</span>';
-      multiUi.appendChild(b);
-    }
-    const cxS = (p.x - camera.cx) * camera.scale + r.width / 2;
-    const bottom = (p.y - camera.cy) * camera.scale + r.height / 2 + p.h * camera.scale / 2;
-    b.style.left = cxS + 'px';
-    b.style.top = (bottom + 8) + 'px';
+  const b = multiSel.size ? multiBounds() : null;
+  if (!b) {
+    groupBoxEl.style.display = 'none';
+    groupHandleEl.style.display = 'none';
+    groupDelEl.style.display = 'none';
+    return;
   }
-  for (const b of [...multiUi.children]) if (!seen.has(b.dataset.pid)) b.remove();
+  const r = viewport.getBoundingClientRect();
+  const left = (b.minX - camera.cx) * camera.scale + r.width / 2;
+  const top = (b.minY - camera.cy) * camera.scale + r.height / 2;
+  const w = b.w * camera.scale, h = b.h * camera.scale;
+  groupBoxEl.style.display = 'block';
+  groupBoxEl.style.left = left + 'px';
+  groupBoxEl.style.top = top + 'px';
+  groupBoxEl.style.width = w + 'px';
+  groupBoxEl.style.height = h + 'px';
+  groupHandleEl.style.display = 'block';
+  groupHandleEl.style.left = (left + w - 12) + 'px';
+  groupHandleEl.style.top = (top + h - 12) + 'px';
+  groupDelEl.style.display = 'flex';
+  groupDelEl.style.left = (left + w / 2) + 'px';
+  groupDelEl.style.top = (top + h + 8) + 'px';
 }
-multiUi.addEventListener('click', (e) => {
-  const b = e.target.closest('.mdel');
-  if (b) deletePlacementFlow(b.dataset.pid);
+groupHandleEl.addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  e.preventDefault();
+  const b = multiBounds();
+  if (!b) return;
+  const startW = screenToWorld(e.clientX, e.clientY);
+  const orig = new Map();
+  for (const pid of multiSel) { const q = placementByPid(pid); if (q) orig.set(pid, { x: q.x, y: q.y, w: q.w, h: q.h }); }
+  groupDrag = { pointerId: e.pointerId, anchorX: b.minX, anchorY: b.minY, bboxW: b.w, orig, grabDX: startW.x - b.maxX, grabDY: startW.y - b.maxY };
+  groupHandleEl.setPointerCapture(e.pointerId);
+  groupHandleEl.addEventListener('pointermove', onGroupResizeMove);
+  groupHandleEl.addEventListener('pointerup', onGroupDragEnd, { once: true });
+  groupHandleEl.addEventListener('pointercancel', onGroupDragEnd, { once: true });
+});
+groupDelEl.addEventListener('click', async () => {
+  const pids = [...multiSel];
+  for (const pid of pids) await deletePlacementFlow(pid);
 });
 
 resizeHandle.addEventListener('pointerdown', (e) => {
@@ -820,9 +830,6 @@ let tapCandidate = null;   // 選択されていない画像への「軽いタ�
 viewport.addEventListener('pointerdown', (e) => {
   if (e.target.closest('#frameUi, #multiUi')) return;   /* 画面固定UIの上はキャンバス操作にしない */
   if (rangeMode) {
-    const frameEl0 = e.target.closest('.frame');
-    const fp0 = frameEl0 ? placementByPid(frameEl0.dataset.pid) : null;
-    if (fp0 && multiSel.has(fp0.pid)) return;   /* 選択済み画像はフレーム側でグループ拡縮する */
     e.preventDefault();
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     viewport.setPointerCapture(e.pointerId);
