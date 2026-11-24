@@ -150,7 +150,6 @@ let deletedItemIds = new Set();
 let deletedPlacementIds = new Set();
 let pendingUploadIds = new Set();  // 画像実体がまだGitHubに無い item id
 let metaDirty = false;
-let unsentCount = 0;  // 未送信の変更数（同期ボタンのバッジ表示用）
 let camera = { cx: 0, cy: 0, scale: 1 };
 let zCounter = 20;
 let selectedPid = null;
@@ -218,7 +217,7 @@ async function saveLocal() {
     deletedItemIds: [...deletedItemIds],
     deletedPlacementIds: [...deletedPlacementIds],
     pendingUploadIds: [...pendingUploadIds],
-    metaDirty, unsentCount, camera, zCounter
+    metaDirty, camera, zCounter
   };
   try { await idbSet('kv', 'state', data); } catch (e) {}
 }
@@ -232,7 +231,6 @@ async function loadLocal() {
     deletedPlacementIds = new Set(d.deletedPlacementIds || []);
     pendingUploadIds = new Set(d.pendingUploadIds || []);
     metaDirty = !!d.metaDirty;
-    unsentCount = d.unsentCount || 0;
     if (d.camera) camera = d.camera;
     zCounter = d.zCounter || 20;
   } catch (e) {}
@@ -471,7 +469,6 @@ async function onDragEnd(e) {
   if (p) {
     p.u = Date.now();
     metaDirty = true;
-    markUnsent(1);
     await saveLocal();
     scheduleSync();
     const el = frameEls.get(p.pid);
@@ -679,7 +676,6 @@ async function importFiles(files, anchor) {
         });
       });
       metaDirty = true;
-      markUnsent(prepared.length);
       await saveLocal();
       renderAll();
     }
@@ -715,7 +711,6 @@ function duplicatePlacement(pid) {
   const np = Object.assign({}, p, { pid: 'p-' + makeId(), x: p.x + 28, y: p.y + 28, z: ++zCounter, u: Date.now() });
   placements.push(np);
   metaDirty = true;
-  markUnsent(1);
   saveLocal(); renderAll(); scheduleSync();
 }
 async function deletePlacementFlow(pid) {
@@ -741,7 +736,6 @@ async function deletePlacementFlow(pid) {
   }
   if (selectedPid === pid) selectedPid = null;
   metaDirty = true;
-  markUnsent(1);
   await saveLocal();
   renderAll();
   scheduleSync();
@@ -773,7 +767,6 @@ document.getElementById('detailSave').addEventListener('click', async () => {
     item.memo = detailMemo.value;
     item.sourceUrl = detailSource.value.trim();
     metaDirty = true;
-    markUnsent(1);
     await saveLocal();
     scheduleSync();
     toast('保存したよ');
@@ -792,7 +785,6 @@ document.getElementById('detailDelete').addEventListener('click', async () => {
   pendingUploadIds.delete(targetId);
   try { await idbDel('blobs', targetId + ':file'); await idbDel('blobs', targetId + ':thumb'); } catch (e) {}
   metaDirty = true;
-  markUnsent(1);
   await saveLocal();
   renderAll();
   scheduleSync();
@@ -807,17 +799,15 @@ function scheduleSync() {
   updateStatusLine();
 }
 function updateStatusLine() {
-  /* 未送信の数は同期ボタンのバッジで示す（0件なら隠す） */
-  if (unsentCount > 0) {
-    syncBadge.textContent = unsentCount;
+  /* バッジは「まだ送信されていない新しい画像の枚数」だけを示す（0枚なら隠す）。
+     移動・削除などの操作は数えない（2026-11-24 kura指定） */
+  const n = pendingUploadIds.size;
+  if (n > 0) {
+    syncBadge.textContent = n;
     syncBadge.classList.add('show');
   } else {
     syncBadge.classList.remove('show');
   }
-}
-function markUnsent(n) {
-  unsentCount += (n || 1);
-  updateStatusLine();
 }
 function mergeData(remoteIndex, remoteBoards) {
   const rItems = new Map(((remoteIndex && remoteIndex.items) || []).map(it => [it.id, it]));
@@ -904,7 +894,6 @@ async function syncNow(manual) {
     if (!done) throw lastErr || new Error('保存できませんでした');
     for (const id of uploaded) pendingUploadIds.delete(id);
     metaDirty = false;
-    unsentCount = 0;
     await saveLocal();
     renderAll();
     setStatus('同期済み ' + new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }));
