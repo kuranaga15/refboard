@@ -34,6 +34,9 @@
   .bbtn img { display: block; pointer-events: none; }
   #fitBtn img { width: 27px; height: 27px; }
   #syncBtn img { width: 25px; height: 25px; }
+  /* 同期中は同期アイコンをくるくる回す */
+  #syncBtn.syncing img { animation: rb-spin 0.9s linear infinite; }
+  @keyframes rb-spin { to { transform: rotate(360deg); } }
   #menuBtn { font-size: 19px; font-weight: 700; letter-spacing: 1px; padding-bottom: 6px; }
   #importBtn {
     width: 40px; height: 40px; background: #6f6f76; border: none;
@@ -1516,6 +1519,7 @@ async function syncNow(manual) {
   if (syncing) return;
   if (!getToken()) { if (manual) { askToken(); updateStatusLine(); } return; }
   syncing = true;
+  document.getElementById('syncBtn').classList.add('syncing');
   setStatus('同期中…');
   try {
     const base = '/repos/' + GH_OWNER + '/' + DATA_REPO;
@@ -1586,6 +1590,7 @@ async function syncNow(manual) {
     if (manual) toast('同期に失敗したよ…' + err.message, 4200);
   } finally {
     syncing = false;
+    document.getElementById('syncBtn').classList.remove('syncing');
     updateStatusLineSoon();
   }
 }
