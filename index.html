@@ -1361,23 +1361,34 @@ async function syncNow(manual) {
 function updateStatusLineSoon() { setTimeout(updateStatusLine, 1600); }
 document.getElementById('syncBtn').addEventListener('click', () => syncNow(true));
 /* 下部バーを「見えている画面」の下端に固定する。
-   ページ全体がズームされたままの状態でも、visualViewportに追従して常に画面下に出す */
+   通常時（ズームもパンも無し）は素の position:fixed に任せるのが確実なので何もしない。
+   ズーム/パンがある時だけ visualViewport に追従させ、計算結果が画面外なら素の表示に戻す。
+   ※ innerHeight と visualViewport.height が食い違う環境（アプリ内ブラウザ等）があるため、
+     通常時まで計算で動かすとバーが画面外へ押し出されてしまう */
 const barEl = document.getElementById('bottombar');
 function pinBar() {
   const vv = window.visualViewport;
   if (!vv) return;
   const s = vv.scale || 1;
+  barEl.style.transform = '';
+  barEl.style.width = '';
+  if (s === 1 && vv.offsetLeft === 0 && vv.offsetTop === 0) return;
   barEl.style.width = (vv.width * s) + 'px';
   const barH = barEl.offsetHeight;
   const ty = vv.offsetTop + vv.height - barH / s - (window.innerHeight - barH);
   barEl.style.transform = 'translate(' + vv.offsetLeft + 'px,' + ty + 'px) scale(' + (1 / s) + ')';
+  const r = barEl.getBoundingClientRect();
+  if (r.bottom < 0 || r.top > vv.height || r.right < 0 || r.left > vv.width) {
+    barEl.style.transform = '';
+    barEl.style.width = '';
+  }
 }
 if (window.visualViewport) {
   visualViewport.addEventListener('resize', pinBar);
   visualViewport.addEventListener('scroll', pinBar);
 }
 window.addEventListener('orientationchange', () => setTimeout(pinBar, 60));
-window.addEventListener('load', pinBar);
+window.addEventListener('load', () => { pinBar(); setTimeout(pinBar, 300); });
 pinBar();
 
 /* 「…」メニュー */
