@@ -1378,6 +1378,7 @@ async function deletePlacementFlow(pid, record = true) {
 function startCrop(pid) {
   const p = placementByPid(pid);
   if (!p) return;
+  tapGesture = null; tapTrack.clear();   /* 仕掛かり中の多指タップ判定は捨てる（遅れて発火させない） */
   if (cropState) cancelCrop(cropState.pid);
   selectPlacement(pid);
   const el = frameEls.get(pid);
@@ -1612,13 +1613,24 @@ async function stashBlobs(itemId) {
 }
 async function restoreState(json) {
   const d = JSON.parse(json);
-  if (cropState) cancelCrop(cropState.pid);
-  if (freeState) endFreeform();
+  if (cropState || freeState) return false;
+  /* 退避しておいた画像本体をIndexedDBへ戻す（通常は0〜数件だけ） */
+  const newItems = new Map((d.items || []).map(it => [it.id, it]));
+  for (const id of newItems.keys()) {
+    const st = blobStash.get(id);
+    if (st) {
+      if (st.file) await idbSet('blobs', id + ':file', st.file);
+      if (st.thumb) await idbSet('blobs', id + ':thumb', st.thumb);
+    }
+  }
+  /* 待ち時間の間にトリミング等が始まっていたら、遅れて適用したりしない */
+  if (cropState || freeState) return false;
   dragHistory = null;
   clearMultiSel();
   selectedPid = null;
   const prevActive = activeBoardId;
-  items = new Map((d.items || []).map(it => [it.id, it]));
+  const before = new Map(placements.map(p => [p.pid, p]));
+  items = newItems;
   placements = d.placements || [];
   deletedItemIds = new Set(d.deletedItemIds || []);
   deletedPlacementIds = new Set(d.deletedPlacementIds || []);
@@ -1629,42 +1641,67 @@ async function restoreState(json) {
   otherBoards = new Map(d.otherBoards || []);
   if (d.activeBoardId && boardsMeta.some(b => b.id === d.activeBoardId)) activeBoardId = d.activeBoardId;
   deletedBoardIds = new Set(d.deletedBoardIds || []);
-  if (activeBoardId !== prevActive) {
+  const boardChanged = activeBoardId !== prevActive;
+  if (boardChanged) {
     boardCameras[prevActive] = camera;
     camera = boardCameras[activeBoardId] || { cx: 0, cy: 0, scale: 1 };
   }
   boardCameras[activeBoardId] = camera;
-  /* 退避しておいた画像本体をIndexedDBへ戻す */
-  for (const id of items.keys()) {
-    const st = blobStash.get(id);
-    if (st) {
-      if (st.file) await idbSet('blobs', id + ':file', st.file);
-      if (st.thumb) await idbSet('blobs', id + ':thumb', st.thumb);
+  /* 変わった配置だけ描き直す（全部作り直すと画像が多い時に固まるため） */
+  const alive = new Set();
+  for (const p of placements) {
+    alive.add(p.pid);
+    let el = frameEls.get(p.pid);
+    if (!el) {
+      el = buildFrameEl(p); frameEls.set(p.pid, el); world.appendChild(el);
+      positionFrameEl(p, el);
+      refreshFrameImage(p, el);
+      continue;
+    }
+    const b = before.get(p.pid);
+    if (!b || b.x !== p.x || b.y !== p.y || b.w !== p.w || b.h !== p.h || b.z !== p.z || b.angle !== p.angle || b.itemId !== p.itemId) {
+      positionFrameEl(p, el);
+      refreshFrameImage(p, el);
     }
   }
-  renderAll();
-  applyCamera();
-  renderTabs();
+  for (const [pid] of [...frameEls]) if (!alive.has(pid)) removeFrameEl(pid);
+  hintEl.style.display = placements.length ? 'none' : 'block';
+  if (boardChanged) { applyCamera(); renderTabs(); }
+  updateStatusLine();
+  layoutFrameUi();
   await saveLocal();
   scheduleSync();
   pruneBlobStash();
+  return true;
 }
 async function undo() {
   if (historyBusy || !undoStack.length) return;
+  if (cropState || freeState) return;
   historyBusy = true;
   try {
-    redoStack.push(serializeState());
-    if (redoStack.length > HISTORY_MAX) redoStack.shift();
-    await restoreState(undoStack.pop());
+    const snap = undoStack.pop();
+    const cur = serializeState();
+    if (await restoreState(snap)) {
+      redoStack.push(cur);
+      if (redoStack.length > HISTORY_MAX) redoStack.shift();
+    } else {
+      undoStack.push(snap);   /* 適用しなかったので履歴は元に戻す */
+    }
   } finally { historyBusy = false; }
 }
 async function redo() {
   if (historyBusy || !redoStack.length) return;
+  if (cropState || freeState) return;
   historyBusy = true;
   try {
-    undoStack.push(serializeState());
-    if (undoStack.length > HISTORY_MAX) undoStack.shift();
-    await restoreState(redoStack.pop());
+    const snap = redoStack.pop();
+    const cur = serializeState();
+    if (await restoreState(snap)) {
+      undoStack.push(cur);
+      if (undoStack.length > HISTORY_MAX) undoStack.shift();
+    } else {
+      redoStack.push(snap);
+    }
   } finally { historyBusy = false; }
 }
 function beginDragHistory(list) {
@@ -1692,7 +1729,7 @@ const tapTrack = new Map();
 let tapGesture = null;
 viewport.addEventListener('pointerdown', (e) => {
   if (e.target.closest('#frameUi, #multiUi')) return;
-  if (cropState || freeState) { tapGesture = null; tapTrack.clear(); return; }
+  if (cropState || freeState || historyBusy) { tapGesture = null; tapTrack.clear(); return; }
   tapTrack.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (!tapGesture) tapGesture = { n: 0, t0: Date.now(), ok: true };
   tapGesture.n = Math.max(tapGesture.n, tapTrack.size);
@@ -1725,6 +1762,7 @@ let freeState = null;
 function startFreeform(pid) {
   const p = placementByPid(pid);
   if (!p) return;
+  tapGesture = null; tapTrack.clear();   /* 仕掛かり中の多指タップ判定は捨てる（遅れて発火させない） */
   if (cropState) cancelCrop(cropState.pid);
   if (freeState) endFreeform();
   selectPlacement(pid);
