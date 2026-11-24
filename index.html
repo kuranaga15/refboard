@@ -47,6 +47,16 @@
     box-shadow: 0 1px 4px rgba(0,0,0,.4);
   }
   #syncBadge.show { display: inline-flex; }
+  /* 範囲選択ボタンと複数選択まわり */
+  #rangeBtn svg { width: 19px; height: 19px; display: block; pointer-events: none; }
+  .bbtn.on { background: #54545e; border-color: #e8e8ec; }
+  #selRect {
+    position: absolute; display: none; z-index: 60; pointer-events: none;
+    border: 1.5px dashed #9db4ff; background: rgba(111,141,255,.13);
+  }
+  #multiUi { position: absolute; inset: 0; z-index: 55; pointer-events: none; }
+  .mdel { position: absolute; transform: translateX(-50%); pointer-events: auto; }
+  .frame.multi { outline: 2px solid #6f8dff; outline-offset: 1px; }
   /* 「…」メニュー（たまにしか使わない機能の置き場所。今後増える機能もここへ入れる） */
   #menu {
     position: absolute; bottom: calc(100% + 2px); right: 16px; z-index: 150; pointer-events: auto;
@@ -165,6 +175,7 @@
   <button class="bbtn" id="importBtn" title="画像をインポート">＋</button>
   <div class="spacer"></div>
   <button class="bbtn" id="fitBtn" title="全体を表示"><img src="data:image/png;base64,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" alt="全体"></button>
+  <button class="bbtn" id="rangeBtn" title="範囲選択"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4.5 3.5" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/></svg></button>
   <button class="bbtn" id="syncBtn" title="GitHubと同期"><img src="data:image/png;base64,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" alt="同期"><span id="syncBadge"></span></button>
   <button class="bbtn" id="menuBtn" title="メニュー">…</button>
   <div id="menu">
@@ -185,6 +196,8 @@
       <div class="tbtn del act-crop-cancel" title="キャンセル"><span class="xgl">✕</span></div>
     </div>
   </div>
+  <div id="selRect"></div>
+  <div id="multiUi"></div>
   <div id="hint">左下の ＋ から画像を取り込んでね<br>ドラッグで移動、ピンチで拡大縮小だよ</div>
 </div>
 <div id="detail">
@@ -498,6 +511,7 @@ function positionFrameEl(p, el) {
   el.style.zIndex = (p.pid === selectedPid || (cropState && cropState.pid === p.pid)) ? 100000 : (p.z || 20);
   el.style.transform = 'rotate(' + (p.angle || 0) + 'deg)';
   el.classList.toggle('selected', p.pid === selectedPid);
+  el.classList.toggle('multi', multiSel.has(p.pid));
   const pItem = itemOf(p);
   el.classList.toggle('alpha', !!(pItem && pItem.alpha));
   layoutFrameUi();
@@ -526,6 +540,7 @@ function buildFrameEl(p) {
   return el;
 }
 function selectPlacement(pid) {
+  if (!rangeMode && multiSel.size) clearMultiSel();
   selectedPid = pid;
   for (const p of placements) {
     const el = frameEls.get(p.pid);
@@ -537,12 +552,42 @@ function selectPlacement(pid) {
 let dragState = null;
 let cropState = null;   // {pid, x, y, w, h, frameW, frameH} フレーム内座標（ワールド単位）
 let cropDrag = null;
+/* 範囲選択（2026-11-24 kura依頼で追加） */
+let rangeMode = false;          // 範囲選択モード中か
+let multiSel = new Set();       // 範囲選択で選ばれた配置のpid
+let rangeDrag = null;           // 範囲ドラッグ中 {pointerId, x0, y0, moved}
+let groupDrag = null;           // グループ拡縮中 {pointerId, cx, cy, startDist, orig}
+function clearMultiSel() {
+  if (!multiSel.size) return;
+  multiSel.clear();
+  for (const p of placements) { const el = frameEls.get(p.pid); if (el) el.classList.remove('multi'); }
+  layoutMultiUi();
+}
+function refreshMultiClasses() {
+  for (const p of placements) { const el = frameEls.get(p.pid); if (el) el.classList.toggle('multi', multiSel.has(p.pid)); }
+  layoutMultiUi();
+}
 function onFramePointerDown(e) {
   if (e.target.closest('.tbtn') || e.target.closest('.handle')) return;
   const el = e.currentTarget;
   const p = placementByPid(el.dataset.pid);
   if (!p) return;
   if (el.classList.contains('cropping')) return;
+  if (rangeMode && multiSel.has(p.pid)) {
+    /* 範囲選択で選ばれた画像のドラッグは、選択全体の拡縮にする */
+    e.preventDefault();
+    const c = multiBoundsCenter();
+    if (!c) return;
+    const startW = screenToWorld(e.clientX, e.clientY);
+    const orig = new Map();
+    for (const pid2 of multiSel) { const q = placementByPid(pid2); if (q) orig.set(pid2, { x: q.x, y: q.y, w: q.w, h: q.h }); }
+    groupDrag = { pointerId: e.pointerId, cx: c.x, cy: c.y, startDist: Math.max(10, Math.hypot(startW.x - c.x, startW.y - c.y)), orig };
+    el.setPointerCapture(e.pointerId);
+    el.addEventListener('pointermove', onGroupDragMove);
+    el.addEventListener('pointerup', onGroupDragEnd, { once: true });
+    el.addEventListener('pointercancel', onGroupDragEnd, { once: true });
+    return;
+  }
   if (cropState && cropState.pid !== p.pid) cancelCrop(cropState.pid);
   /* 選択は「軽いタップ」の時だけ（viewport側で判定）。選択されていない画像は
      ドラッグしても動かさない。パンやピンチで触れただけで変更しないため（2026-11-24 kura指定） */
@@ -589,6 +634,7 @@ function layoutFrameUi() {
     selToolbar.classList.remove('on');
     cropControlsEl.classList.remove('on');
     resizeHandle.classList.remove('on');
+    layoutMultiUi();
     return;
   }
   const r = viewport.getBoundingClientRect();
@@ -611,7 +657,102 @@ function layoutFrameUi() {
     resizeHandle.style.left = (right - 12) + 'px';
     resizeHandle.style.top = (bottom - 12) + 'px';
   }
+  layoutMultiUi();
 }
+/* ---------- 範囲選択 / グループ拡縮 / 複数選択の✕ ---------- */
+const selRectEl = document.getElementById('selRect');
+const multiUi = document.getElementById('multiUi');
+function showSelRect(x0, y0, x1, y1) {
+  const r = viewport.getBoundingClientRect();
+  selRectEl.style.display = 'block';
+  selRectEl.style.left = (Math.min(x0, x1) - r.left) + 'px';
+  selRectEl.style.top = (Math.min(y0, y1) - r.top) + 'px';
+  selRectEl.style.width = Math.abs(x1 - x0) + 'px';
+  selRectEl.style.height = Math.abs(y1 - y0) + 'px';
+}
+function hideSelRect() { selRectEl.style.display = 'none'; }
+function finishRangeSelect(x0, y0, x1, y1) {
+  const a = screenToWorld(x0, y0), b = screenToWorld(x1, y1);
+  const minX = Math.min(a.x, b.x), maxX = Math.max(a.x, b.x);
+  const minY = Math.min(a.y, b.y), maxY = Math.max(a.y, b.y);
+  multiSel = new Set();
+  for (const p of placements) {
+    if (p.x + p.w / 2 >= minX && p.x - p.w / 2 <= maxX && p.y + p.h / 2 >= minY && p.y - p.h / 2 <= maxY) {
+      multiSel.add(p.pid);
+    }
+  }
+  refreshMultiClasses();
+}
+function multiBoundsCenter() {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, n = 0;
+  for (const pid of multiSel) {
+    const p = placementByPid(pid);
+    if (!p) continue;
+    n++;
+    minX = Math.min(minX, p.x - p.w / 2); maxX = Math.max(maxX, p.x + p.w / 2);
+    minY = Math.min(minY, p.y - p.h / 2); maxY = Math.max(maxY, p.y + p.h / 2);
+  }
+  return n ? { x: (minX + maxX) / 2, y: (minY + maxY) / 2 } : null;
+}
+function onGroupDragMove(e) {
+  if (!groupDrag || e.pointerId !== groupDrag.pointerId) return;
+  const now = screenToWorld(e.clientX, e.clientY);
+  const d = Math.hypot(now.x - groupDrag.cx, now.y - groupDrag.cy);
+  const f = clamp(d / groupDrag.startDist, 0.05, 20);
+  for (const [pid, o] of groupDrag.orig) {
+    const p = placementByPid(pid);
+    if (!p) continue;
+    p.x = groupDrag.cx + (o.x - groupDrag.cx) * f;
+    p.y = groupDrag.cy + (o.y - groupDrag.cy) * f;
+    p.w = Math.max(10, o.w * f);
+    p.h = Math.max(10, o.h * f);
+    const el = frameEls.get(pid);
+    if (el) positionFrameEl(p, el);
+  }
+  layoutMultiUi();
+}
+async function onGroupDragEnd(e) {
+  if (!groupDrag) return;
+  groupDrag = null;
+  for (const pid of multiSel) {
+    const p = placementByPid(pid);
+    if (p) { p.u = Date.now(); const el = frameEls.get(pid); if (el) refreshFrameImage(p, el); }
+  }
+  metaDirty = true;
+  await saveLocal();
+  scheduleSync();
+  nudgeRepaint();
+}
+/* 複数選択中は、各画像の下に✕だけを出す（画面固定レイヤーに配置） */
+function layoutMultiUi() {
+  if (!multiUi) return;
+  if (!multiSel.size) { if (multiUi.childElementCount) multiUi.innerHTML = ''; return; }
+  const r = viewport.getBoundingClientRect();
+  const seen = new Set();
+  for (const pid of multiSel) {
+    const p = placementByPid(pid);
+    if (!p) continue;
+    seen.add(pid);
+    let b = multiUi.querySelector('[data-pid="' + pid + '"]');
+    if (!b) {
+      b = document.createElement('div');
+      b.className = 'tbtn del mdel';
+      b.dataset.pid = pid;
+      b.innerHTML = '<span class="xgl">✕</span>';
+      multiUi.appendChild(b);
+    }
+    const cxS = (p.x - camera.cx) * camera.scale + r.width / 2;
+    const bottom = (p.y - camera.cy) * camera.scale + r.height / 2 + p.h * camera.scale / 2;
+    b.style.left = cxS + 'px';
+    b.style.top = (bottom + 8) + 'px';
+  }
+  for (const b of [...multiUi.children]) if (!seen.has(b.dataset.pid)) b.remove();
+}
+multiUi.addEventListener('click', (e) => {
+  const b = e.target.closest('.mdel');
+  if (b) deletePlacementFlow(b.dataset.pid);
+});
+
 resizeHandle.addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   e.preventDefault();
@@ -677,7 +818,31 @@ const pointers = new Map();
 let panState = null, pinchState = null;
 let tapCandidate = null;   // 選択されていない画像への「軽いタップ」候補
 viewport.addEventListener('pointerdown', (e) => {
-  if (e.target.closest('#frameUi')) return;   /* 画面固定UIの上はキャンバス操作にしない */
+  if (e.target.closest('#frameUi, #multiUi')) return;   /* 画面固定UIの上はキャンバス操作にしない */
+  if (rangeMode) {
+    const frameEl0 = e.target.closest('.frame');
+    const fp0 = frameEl0 ? placementByPid(frameEl0.dataset.pid) : null;
+    if (fp0 && multiSel.has(fp0.pid)) return;   /* 選択済み画像はフレーム側でグループ拡縮する */
+    e.preventDefault();
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    viewport.setPointerCapture(e.pointerId);
+    if (pointers.size === 1) {
+      rangeDrag = { pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, moved: false };
+      panState = null;
+      tapCandidate = null;
+    } else if (pointers.size === 2) {
+      if (rangeDrag) { rangeDrag = null; hideSelRect(); }
+      tapCandidate = null;
+      panState = null;
+      const pts = [...pointers.values()];
+      pinchState = {
+        dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+        scale: camera.scale,
+        midWorld: screenToWorld((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2)
+      };
+    }
+    return;
+  }
   const frameEl = e.target.closest('.frame');
   if (frameEl) {
     const fp = placementByPid(frameEl.dataset.pid);
@@ -707,6 +872,12 @@ viewport.addEventListener('pointerdown', (e) => {
 viewport.addEventListener('pointermove', (e) => {
   if (!pointers.has(e.pointerId)) return;
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (rangeDrag && e.pointerId === rangeDrag.pointerId) {
+    const dx = e.clientX - rangeDrag.x0, dy = e.clientY - rangeDrag.y0;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) rangeDrag.moved = true;
+    if (rangeDrag.moved) showSelRect(rangeDrag.x0, rangeDrag.y0, e.clientX, e.clientY);
+    return;
+  }
   if (tapCandidate && e.pointerId === tapCandidate.pointerId &&
       Math.hypot(e.clientX - tapCandidate.x, e.clientY - tapCandidate.y) > 10) {
     tapCandidate = null;   // 動いたらタップではなくパンとして扱う
@@ -727,6 +898,22 @@ viewport.addEventListener('pointermove', (e) => {
   }
 });
 function endViewportPointer(e) {
+  if (rangeDrag && e.pointerId === rangeDrag.pointerId) {
+    const rd = rangeDrag;
+    rangeDrag = null;
+    pointers.delete(e.pointerId);
+    hideSelRect();
+    if (pointers.size < 2) pinchState = null;
+    if (pointers.size === 0) {
+      panState = null;
+      tapCandidate = null;
+      if (rd.moved) finishRangeSelect(rd.x0, rd.y0, e.clientX, e.clientY);
+      else clearMultiSel();   /* 範囲を作らないタップは複数選択の解除 */
+      saveLocal();
+      nudgeRepaint();
+    }
+    return;
+  }
   const tap = (tapCandidate && tapCandidate.pointerId === e.pointerId && pointers.size === 1 &&
     (Date.now() - tapCandidate.t) <= 500) ? tapCandidate : null;
   pointers.delete(e.pointerId);
@@ -760,11 +947,11 @@ document.addEventListener('gesturestart', (e) => e.preventDefault());
 /* iOSの拡大鏡（選択ルーペ）はタッチイベント側の既定動作でも出ることがあるため、
    そちらも抑止する。画面固定UI（ボタン類）のタップは対象外（clickを生かすため） */
 viewport.addEventListener('touchstart', (e) => {
-  if (e.target.closest('#frameUi')) return;
+  if (e.target.closest('#frameUi, #multiUi')) return;
   if (e.cancelable) e.preventDefault();
 }, { passive: false });
 viewport.addEventListener('touchmove', (e) => {
-  if (e.target.closest('#frameUi')) return;
+  if (e.target.closest('#frameUi, #multiUi')) return;
   if (e.cancelable) e.preventDefault();
 }, { passive: false });
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
@@ -988,6 +1175,7 @@ async function deletePlacementFlow(pid) {
     }
   }
   if (selectedPid === pid) selectedPid = null;
+  multiSel.delete(pid);
   metaDirty = true;
   removeFrameEl(pid);
   renderAll();
@@ -1407,6 +1595,18 @@ document.getElementById('menuKey').addEventListener('click', () => {
   const t = askToken();
   if (t) { toast('トークンを保存したよ。「同期」ボタンで同期してね'); }
   updateStatusLine();
+});
+const rangeBtn = document.getElementById('rangeBtn');
+rangeBtn.addEventListener('click', () => {
+  rangeMode = !rangeMode;
+  rangeBtn.classList.toggle('on', rangeMode);
+  if (rangeMode) {
+    if (cropState) cancelCrop(cropState.pid);
+    selectPlacement(null);
+    toast('範囲選択モード: ドラッグで囲んでね');
+  } else {
+    clearMultiSel();
+  }
 });
 document.getElementById('fitBtn').addEventListener('click', () => {
   if (!placements.length) { camera = { cx: 0, cy: 0, scale: 1 }; applyCamera(); return; }
