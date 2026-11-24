@@ -51,6 +51,19 @@
     box-shadow: 0 1px 4px rgba(0,0,0,.4);
   }
   #syncBadge.show { display: inline-flex; }
+  /* ボード切り替えタブ（上部に吸着。作った数だけ幅を等分する） */
+  #tabbar {
+    position: fixed; left: 0; top: 0; width: 100%; z-index: 80;
+    display: flex; gap: 6px; padding: calc(8px + env(safe-area-inset-top)) 10px 8px;
+    background: rgba(24,24,28,.92); transform-origin: 0 0; box-sizing: border-box;
+  }
+  .btab {
+    flex: 1 1 0; min-width: 0; padding: 7px 6px; border-radius: 999px;
+    background: transparent; border: none; color: #a5a5ad;
+    font-size: 13px; font-family: inherit; text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+  }
+  .btab.on { background: #e9e9ee; color: #232328; font-weight: 600; }
   /* 範囲選択ボタンと複数選択まわり */
   #rangeBtn svg { width: 19px; height: 19px; display: block; pointer-events: none; }
   .bbtn.on { background: #54545e; border-color: #e8e8ec; }
@@ -183,6 +196,7 @@
 </style>
 </head>
 <body>
+<div id="tabbar"></div>
 <div id="bottombar">
   <button class="bbtn" id="importBtn" title="画像をインポート">＋</button>
   <div class="spacer"></div>
@@ -191,6 +205,9 @@
   <button class="bbtn" id="syncBtn" title="GitHubと同期"><img src="data:image/png;base64,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" alt="同期"><span id="syncBadge"></span></button>
   <button class="bbtn" id="menuBtn" title="メニュー">…</button>
   <div id="menu">
+    <button class="mitem" id="menuBoardNew">ボードを新規作成</button>
+    <button class="mitem" id="menuBoardRename">ボード名を変更</button>
+    <button class="mitem" id="menuBoardDelete">ボードを削除</button>
     <button class="mitem" id="menuKey">GH鍵（トークン設定）</button>
   </div>
 </div>
@@ -245,6 +262,17 @@ const DATA_REPO = 'refboard-data';
 const GH_BRANCH = 'main';
 const TOKEN_KEY = 'refboard-gh-token';
 const BOARD_ID = 'b1';
+/* 複数ボード（プロジェクト）対応。placements は常にアクティブなボードのもの。
+   他のボードの配置は otherBoards に退避する。ボードの並びと名前は boardsMeta が持つ */
+let boardsMeta = [{ id: BOARD_ID, name: 'ボード1', updatedAt: '' }];
+let otherBoards = new Map();
+let activeBoardId = BOARD_ID;
+let deletedBoardIds = new Set();
+let boardCameras = {};
+function allBoardsForSave() {
+  return boardsMeta.map(m => ({ id: m.id, name: m.name, updatedAt: m.updatedAt || '',
+    placements: m.id === activeBoardId ? placements : (otherBoards.get(m.id) || []) }));
+}
 const MAIN_MAX = 1600, THUMB_MAX = 320;
 const LAYOUT_ROW_H = 280, LAYOUT_GAP = 16;
 
@@ -322,7 +350,9 @@ async function saveLocal() {
     deletedItemIds: [...deletedItemIds],
     deletedPlacementIds: [...deletedPlacementIds],
     pendingUploadIds: [...pendingUploadIds],
-    metaDirty, camera, zCounter
+    metaDirty, camera, zCounter,
+    boardsMeta, otherBoards: [...otherBoards], activeBoardId,
+    deletedBoardIds: [...deletedBoardIds], boardCameras
   };
   try { await idbSet('kv', 'state', data); } catch (e) {}
 }
@@ -338,6 +368,12 @@ async function loadLocal() {
     metaDirty = !!d.metaDirty;
     if (d.camera) camera = d.camera;
     zCounter = d.zCounter || 20;
+    if (Array.isArray(d.boardsMeta) && d.boardsMeta.length) boardsMeta = d.boardsMeta;
+    otherBoards = new Map(d.otherBoards || []);
+    if (d.activeBoardId && boardsMeta.some(b => b.id === d.activeBoardId)) activeBoardId = d.activeBoardId;
+    deletedBoardIds = new Set(d.deletedBoardIds || []);
+    boardCameras = d.boardCameras || {};
+    boardCameras[activeBoardId] = camera;
   } catch (e) {}
 }
 
@@ -1503,18 +1539,47 @@ function mergeData(remoteIndex, remoteBoards) {
   for (const [id, it] of rItems) if (!items.has(id)) items.set(id, it);
   deletedItemIds = del;
   const rBoards = (remoteBoards && remoteBoards.boards) || [];
-  const rBoard = rBoards.find(b => b.id === BOARD_ID);
-  const rPlacements = (rBoard && rBoard.placements) || [];
   const pDel = new Set([...(remoteBoards && remoteBoards.deletedPlacementIds || []), ...deletedPlacementIds]);
-  const byPid = new Map();
-  for (const p of rPlacements) byPid.set(p.pid, p);
-  for (const p of placements) {
-    const r = byPid.get(p.pid);
-    if (!r || (p.u || 0) >= (r.u || 0)) byPid.set(p.pid, p);
-  }
-  for (const pid of pDel) byPid.delete(pid);
-  placements = [...byPid.values()].filter(p => items.has(p.itemId));
   deletedPlacementIds = pDel;
+  const bDel = new Set([...(remoteBoards && remoteBoards.deletedBoardIds || []), ...deletedBoardIds]);
+  deletedBoardIds = bDel;
+  /* ボードごとに配置をマージする（名前は updatedAt が新しい方を採用） */
+  const local = new Map();
+  for (const m of boardsMeta) local.set(m.id, { meta: m, placements: m.id === activeBoardId ? placements : (otherBoards.get(m.id) || []) });
+  const remote = new Map();
+  for (const b of rBoards) remote.set(b.id, b);
+  const order = [];
+  for (const m of boardsMeta) if (!bDel.has(m.id)) order.push(m.id);
+  for (const b of rBoards) if (!bDel.has(b.id) && !order.includes(b.id)) order.push(b.id);
+  const newMeta = [], newOther = new Map();
+  let newActivePlacements = null;
+  for (const id of order) {
+    const L = local.get(id), R = remote.get(id);
+    let name = 'ボード', upd = '';
+    if (L && R) { if ((R.updatedAt || '') > (L.meta.updatedAt || '')) { name = R.name || name; upd = R.updatedAt || ''; } else { name = L.meta.name; upd = L.meta.updatedAt || ''; } }
+    else if (R) { name = R.name || name; upd = R.updatedAt || ''; }
+    else if (L) { name = L.meta.name; upd = L.meta.updatedAt || ''; }
+    newMeta.push({ id, name, updatedAt: upd });
+    const byPid = new Map();
+    for (const p of (R ? (R.placements || []) : [])) byPid.set(p.pid, p);
+    for (const p of (L ? L.placements : [])) {
+      const r = byPid.get(p.pid);
+      if (!r || (p.u || 0) >= (r.u || 0)) byPid.set(p.pid, p);
+    }
+    for (const pid of pDel) byPid.delete(pid);
+    const arr = [...byPid.values()].filter(p => items.has(p.itemId));
+    if (id === activeBoardId) newActivePlacements = arr; else newOther.set(id, arr);
+  }
+  if (!newMeta.length) newMeta.push({ id: BOARD_ID, name: 'ボード1', updatedAt: '' });
+  if (!newMeta.some(b => b.id === activeBoardId)) {
+    activeBoardId = newMeta[0].id;
+    newActivePlacements = newOther.get(activeBoardId) || [];
+    newOther.delete(activeBoardId);
+    if (boardCameras[activeBoardId]) camera = boardCameras[activeBoardId];
+  }
+  boardsMeta = newMeta;
+  otherBoards = newOther;
+  if (newActivePlacements) placements = newActivePlacements;
 }
 async function syncNow(manual) {
   if (syncing) return;
@@ -1530,6 +1595,7 @@ async function syncNow(manual) {
     mergeData(remoteIndex, remoteBoards);
     await saveLocal();
     renderAll();
+    renderTabs();
     /* push が要るか判定 */
     const needPush = pendingUploadIds.size > 0 || metaDirty;
     if (!needPush) { setStatus('同期済み'); return; }
@@ -1550,7 +1616,7 @@ async function syncNow(manual) {
     }
     const nowIso = new Date().toISOString();
     const indexObj = { formatVersion: 1, updatedAt: nowIso, deletedIds: [...deletedItemIds], items: [...items.values()] };
-    const boardsObj = { formatVersion: 1, updatedAt: nowIso, deletedPlacementIds: [...deletedPlacementIds], boards: [{ id: BOARD_ID, name: 'ボード1', updatedAt: nowIso, placements }] };
+    const boardsObj = { formatVersion: 1, updatedAt: nowIso, deletedPlacementIds: [...deletedPlacementIds], deletedBoardIds: [...deletedBoardIds], boards: allBoardsForSave().map(b => ({ id: b.id, name: b.name, updatedAt: b.updatedAt || nowIso, placements: b.placements })) };
     const idxBlob = await ghApiJson(base + '/git/blobs', { method: 'POST', body: JSON.stringify({ content: utf8ToBase64(JSON.stringify(indexObj)), encoding: 'base64' }) });
     treeItems.push({ path: 'data/index.json', mode: '100644', type: 'blob', sha: idxBlob.sha });
     const brdBlob = await ghApiJson(base + '/git/blobs', { method: 'POST', body: JSON.stringify({ content: utf8ToBase64(JSON.stringify(boardsObj)), encoding: 'base64' }) });
@@ -1613,13 +1679,25 @@ function pinBar() {
   const ty = vv.offsetTop + vv.height - barH / s;
   barEl.style.transform = 'translate(' + vv.offsetLeft + 'px,' + ty + 'px) scale(' + (1 / s) + ')';
 }
+/* タブバーも表示領域の上端に吸着させる（下部バーと同じ方式） */
+const tabEl = document.getElementById('tabbar');
+function pinTabs() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const s = vv.scale || 1;
+  tabEl.style.width = (vv.width * s) + 'px';
+  tabEl.style.transform = 'translate(' + vv.offsetLeft + 'px,' + vv.offsetTop + 'px) scale(' + (1 / s) + ')';
+}
 if (window.visualViewport) {
   visualViewport.addEventListener('resize', pinBar);
   visualViewport.addEventListener('scroll', pinBar);
+  visualViewport.addEventListener('resize', pinTabs);
+  visualViewport.addEventListener('scroll', pinTabs);
 }
-window.addEventListener('orientationchange', () => setTimeout(pinBar, 60));
-window.addEventListener('load', () => { pinBar(); setTimeout(pinBar, 300); });
+window.addEventListener('orientationchange', () => setTimeout(() => { pinBar(); pinTabs(); }, 60));
+window.addEventListener('load', () => { pinBar(); pinTabs(); setTimeout(() => { pinBar(); pinTabs(); }, 300); });
 pinBar();
+pinTabs();
 
 /* 「…」メニュー */
 const menuEl = document.getElementById('menu');
@@ -1644,6 +1722,98 @@ document.getElementById('menuKey').addEventListener('click', () => {
   askToken();
   updateStatusLine();
 });
+/* ---------- ボード（プロジェクト）の切り替え・作成・名前変更・削除 ---------- */
+function renderTabs() {
+  tabEl.innerHTML = '';
+  for (const m of boardsMeta) {
+    const b = document.createElement('button');
+    b.className = 'btab' + (m.id === activeBoardId ? ' on' : '');
+    b.textContent = m.name;
+    b.addEventListener('click', () => switchBoard(m.id));
+    tabEl.appendChild(b);
+  }
+}
+function switchBoard(id) {
+  if (id === activeBoardId || !boardsMeta.some(b => b.id === id)) return;
+  if (cropState) cancelCrop(cropState.pid);
+  selectPlacement(null);
+  if (rangeMode) { rangeMode = false; rangeBtn.classList.remove('on'); clearMultiSel(); }
+  boardCameras[activeBoardId] = camera;
+  otherBoards.set(activeBoardId, placements);
+  activeBoardId = id;
+  placements = otherBoards.get(id) || [];
+  otherBoards.delete(id);
+  camera = boardCameras[id] || { cx: 0, cy: 0, scale: 1 };
+  renderAll();
+  applyCamera();
+  renderTabs();
+  saveLocal();
+}
+const menuBoardDelete = document.getElementById('menuBoardDelete');
+let boardDeleteArmed = false, boardDeleteTimer = null;
+function disarmBoardDelete() {
+  boardDeleteArmed = false;
+  clearTimeout(boardDeleteTimer);
+  menuBoardDelete.textContent = 'ボードを削除';
+}
+document.getElementById('menuBoardNew').addEventListener('click', () => {
+  menuEl.classList.remove('open');
+  disarmBoardDelete();
+  const def = 'ボード' + (boardsMeta.length + 1);
+  const name = prompt('新しいボードの名前', def);
+  if (name === null) return;
+  const id = 'b-' + makeId();
+  boardsMeta.push({ id, name: name.trim() || def, updatedAt: new Date().toISOString() });
+  otherBoards.set(id, []);
+  metaDirty = true;
+  switchBoard(id);
+  updateStatusLine();
+});
+document.getElementById('menuBoardRename').addEventListener('click', () => {
+  menuEl.classList.remove('open');
+  disarmBoardDelete();
+  const m = boardsMeta.find(b => b.id === activeBoardId);
+  if (!m) return;
+  const name = prompt('ボードの名前を変更', m.name);
+  if (name === null) return;
+  m.name = name.trim() || m.name;
+  m.updatedAt = new Date().toISOString();
+  metaDirty = true;
+  renderTabs();
+  saveLocal();
+  updateStatusLine();
+});
+menuBoardDelete.addEventListener('click', () => {
+  if (boardsMeta.length <= 1) return;
+  if (!boardDeleteArmed) {
+    boardDeleteArmed = true;
+    menuBoardDelete.textContent = '本当に削除する？（もう一度タップ）';
+    boardDeleteTimer = setTimeout(disarmBoardDelete, 3000);
+    return;
+  }
+  disarmBoardDelete();
+  menuEl.classList.remove('open');
+  if (cropState) cancelCrop(cropState.pid);
+  selectPlacement(null);
+  if (rangeMode) { rangeMode = false; rangeBtn.classList.remove('on'); clearMultiSel(); }
+  const id = activeBoardId;
+  for (const p of placements) deletedPlacementIds.add(p.pid);
+  deletedBoardIds.add(id);
+  boardsMeta = boardsMeta.filter(b => b.id !== id);
+  otherBoards.delete(id);
+  delete boardCameras[id];
+  activeBoardId = boardsMeta[0].id;
+  placements = otherBoards.get(activeBoardId) || [];
+  otherBoards.delete(activeBoardId);
+  camera = boardCameras[activeBoardId] || { cx: 0, cy: 0, scale: 1 };
+  metaDirty = true;
+  renderAll();
+  applyCamera();
+  renderTabs();
+  saveLocal();
+  updateStatusLine();
+});
+
 const rangeBtn = document.getElementById('rangeBtn');
 rangeBtn.addEventListener('click', () => {
   rangeMode = !rangeMode;
@@ -1682,6 +1852,7 @@ async function pullOnly() {
     mergeData(remoteIndex, remoteBoards);
     await saveLocal();
     renderAll();
+    renderTabs();
   } catch (e) {}
   updateStatusLine();
 }
@@ -1691,6 +1862,7 @@ async function pullOnly() {
   await loadLocal();
   applyCamera();
   renderAll();
+  renderTabs();
   updateStatusLine();
   if (getToken()) pullOnly();
 })();
