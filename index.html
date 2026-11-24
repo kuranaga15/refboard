@@ -36,6 +36,19 @@
   }
   .hbtn:active { background: rgba(255,255,255,.16); }
   #importBtn { background: #4a6cf7; border-color: #4a6cf7; font-size: 18px; font-weight: 700; width: 44px; }
+  /* 「…」メニュー（たまにしか使わない機能の置き場所。今後増える機能もここへ入れる） */
+  #menu {
+    position: fixed; top: calc(58px + env(safe-area-inset-top)); right: 10px; z-index: 150;
+    background: rgba(28,28,33,.97); border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
+    padding: 6px; display: none; min-width: 210px; box-shadow: 0 10px 30px rgba(0,0,0,.5);
+  }
+  #menu.open { display: block; }
+  .mitem {
+    display: block; width: 100%; text-align: left; background: none; border: none;
+    color: #eee; font-size: 14px; padding: 10px 12px; border-radius: 8px; cursor: pointer;
+    font-family: inherit;
+  }
+  .mitem:active { background: rgba(255,255,255,.1); }
   #viewport {
     position: fixed; left: 0; right: 0; bottom: 0; top: calc(52px + env(safe-area-inset-top));
     overflow: hidden; touch-action: none; cursor: grab;
@@ -50,6 +63,9 @@
   }
   .frame img { width: 100%; height: 100%; display: block; border-radius: 4px; pointer-events: none; object-fit: fill; -webkit-user-drag: none; -webkit-touch-callout: none; }
   .frame.selected { outline: 2px solid #6f8dff; outline-offset: 1px; }
+  /* 透過画像は四角い箱にせず、輪郭に沿った影だけにする */
+  .frame.alpha { background: transparent; box-shadow: none; border-radius: 0; }
+  .frame.alpha img { border-radius: 0; filter: drop-shadow(0 4px 10px rgba(0,0,0,.5)); }
   .frame .handle {
     position: absolute; right: -11px; bottom: -11px; width: 24px; height: 24px; border-radius: 50%;
     background: #6f8dff; border: 2px solid #fff; display: none; cursor: nwse-resize; touch-action: none; z-index: 5;
@@ -144,8 +160,11 @@
   <div class="title">refboard</div>
   <button class="hbtn" id="fitBtn" title="全体を表示">全体</button>
   <button class="hbtn" id="syncBtn" title="GitHubと同期">同期<span id="syncBadge"></span></button>
-  <button class="hbtn" id="keyBtn" title="GitHubトークンの設定">GH鍵</button>
+  <button class="hbtn" id="menuBtn" title="メニュー">…</button>
   <button class="hbtn" id="importBtn" title="画像をインポート">＋</button>
+</div>
+<div id="menu">
+  <button class="mitem" id="menuKey">GH鍵（トークン設定）</button>
 </div>
 <div id="viewport">
   <div id="world"></div>
@@ -435,6 +454,8 @@ function positionFrameEl(p, el) {
   el.style.zIndex = (p.pid === selectedPid || (cropState && cropState.pid === p.pid)) ? 100000 : (p.z || 20);
   el.style.transform = 'rotate(' + (p.angle || 0) + 'deg)';
   el.classList.toggle('selected', p.pid === selectedPid);
+  const pItem = itemOf(p);
+  el.classList.toggle('alpha', !!(pItem && pItem.alpha));
 }
 function buildFrameEl(p) {
   const el = document.createElement('div');
@@ -496,6 +517,9 @@ function onFramePointerDown(e) {
   if (!p) return;
   if (el.classList.contains('cropping')) return;
   if (cropState && cropState.pid !== p.pid) cancelCrop(cropState.pid);
+  /* 選択は「軽いタップ」の時だけ（viewport側で判定）。選択されていない画像は
+     ドラッグしても動かさない。パンやピンチで触れただけで変更しないため（2026-11-24 kura指定） */
+  if (p.pid !== selectedPid) return;
   /* ドラッグ中にiOSの拡大鏡（ズーム窓）や選択UIが出ないようにする */
   e.preventDefault();
   selectPlacement(p.pid);
@@ -566,8 +590,17 @@ async function onDragEnd(e) {
 /* ---------- パン / ピンチ / ホイール ---------- */
 const pointers = new Map();
 let panState = null, pinchState = null;
+let tapCandidate = null;   // 選択されていない画像への「軽いタップ」候補
 viewport.addEventListener('pointerdown', (e) => {
-  if (e.target.closest('.frame')) return;
+  const frameEl = e.target.closest('.frame');
+  if (frameEl) {
+    const fp = placementByPid(frameEl.dataset.pid);
+    /* 選択中の画像とトリミング中の画像はフレーム側の操作が優先。ここでは何もしない */
+    if (fp && (fp.pid === selectedPid || (cropState && cropState.pid === fp.pid))) return;
+    /* 選択されていない画像は、離した瞬間にタップだった時だけ選択する。
+       パン/ピンチへの参加自体は妨げない（画像が反応しないだけ） */
+    if (fp) tapCandidate = { pid: fp.pid, pointerId: e.pointerId, x: e.clientX, y: e.clientY, t: Date.now() };
+  }
   e.preventDefault();
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   viewport.setPointerCapture(e.pointerId);
@@ -575,6 +608,7 @@ viewport.addEventListener('pointerdown', (e) => {
     selectPlacement(null);
     panState = { startX: e.clientX, startY: e.clientY, cx: camera.cx, cy: camera.cy };
   } else if (pointers.size === 2) {
+    tapCandidate = null;
     panState = null;
     const pts = [...pointers.values()];
     pinchState = {
@@ -587,6 +621,10 @@ viewport.addEventListener('pointerdown', (e) => {
 viewport.addEventListener('pointermove', (e) => {
   if (!pointers.has(e.pointerId)) return;
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (tapCandidate && e.pointerId === tapCandidate.pointerId &&
+      Math.hypot(e.clientX - tapCandidate.x, e.clientY - tapCandidate.y) > 10) {
+    tapCandidate = null;   // 動いたらタップではなくパンとして扱う
+  }
   if (pinchState && pointers.size === 2) {
     const pts = [...pointers.values()];
     const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
@@ -603,10 +641,14 @@ viewport.addEventListener('pointermove', (e) => {
   }
 });
 function endViewportPointer(e) {
+  const tap = (tapCandidate && tapCandidate.pointerId === e.pointerId && pointers.size === 1 &&
+    (Date.now() - tapCandidate.t) <= 500) ? tapCandidate : null;
   pointers.delete(e.pointerId);
   if (pointers.size < 2) pinchState = null;
   if (pointers.size === 0) {
     panState = null;
+    tapCandidate = null;
+    if (tap) selectPlacement(tap.pid);   // 軽いタップだった時だけ選択する
     saveLocal();
     for (const p of placements) { const el = frameEls.get(p.pid); if (el) refreshFrameImage(p, el); }
   }
@@ -646,11 +688,29 @@ function loadImageFromBlob(blob) {
     img.src = url;
   });
 }
+/* 透過ピクセルが実際に含まれているか（縮小して全ピクセルのalphaを見る）。
+   透過がある＝四角形でない画像だけを透過対応の対象にする（2026-11-24 kura指定） */
+function detectAlpha(img) {
+  try {
+    const maxDim = 256;
+    const s = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * s));
+    const h = Math.max(1, Math.round(img.naturalHeight * s));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h).data;
+    for (let i = 3; i < data.length; i += 4) { if (data[i] < 255) return true; }
+    return false;
+  } catch (e) { return false; }
+}
 async function compressImage(file) {
   const { img, url } = await loadImageFromBlob(file);
   try {
     const nw = img.naturalWidth, nh = img.naturalHeight;
     if (!nw || !nh) throw new Error('画像サイズが取得できませんでした');
+    const alpha = detectAlpha(img);
     function render(maxDim, quality) {
       const s = Math.min(1, maxDim / Math.max(nw, nh));
       const w = Math.max(1, Math.round(nw * s)), h = Math.max(1, Math.round(nh * s));
@@ -659,15 +719,22 @@ async function compressImage(file) {
       c.getContext('2d').drawImage(img, 0, 0, w, h);
       return new Promise((res2) => {
         c.toBlob((b) => {
+          /* WebPは透過を保持できるので第一選択。PNGで返ってきた場合も透過は無事 */
           if (b && b.type === 'image/webp') return res2({ blob: b, ext: 'webp', w, h });
-          c.toBlob((b2) => res2({ blob: b2, ext: 'jpg', w, h }), 'image/jpeg', quality);
+          if (b && b.type === 'image/png') return res2({ blob: b, ext: 'png', w, h });
+          if (alpha) {
+            /* 透過があるのにJPEGへ落とすと透過が消えるため、PNGで保存する */
+            c.toBlob((b2) => res2({ blob: b2, ext: 'png', w, h }), 'image/png');
+          } else {
+            c.toBlob((b2) => res2({ blob: b2, ext: 'jpg', w, h }), 'image/jpeg', quality);
+          }
         }, 'image/webp', quality);
       });
     }
     const main = await render(MAIN_MAX, 0.82);
     const thumb = await render(THUMB_MAX, 0.75);
     if (!main.blob || !thumb.blob) throw new Error('画像の変換に失敗しました');
-    return { main, thumb, naturalW: nw, naturalH: nh };
+    return { main, thumb, naturalW: nw, naturalH: nh, alpha };
   } finally { URL.revokeObjectURL(url); }
 }
 function makeId() {
@@ -738,7 +805,7 @@ async function importFiles(files, anchor) {
         const buf = await f.arrayBuffer();
         const hash = await sha256Hex(buf);
         if ([...items.values()].some(it => it.hash === hash)) { dup++; continue; }
-        const { main, thumb, naturalW, naturalH } = await compressImage(f);
+        const { main, thumb, naturalW, naturalH, alpha } = await compressImage(f);
         const id = makeId();
         const ym = id.slice(0, 4) + '/' + id.slice(4, 6);
         const item = {
@@ -747,6 +814,7 @@ async function importFiles(files, anchor) {
           thumb: 'thumbs/' + ym + '/' + id + '.' + thumb.ext,
           w: main.w, h: main.h,
           hash, memo: '', sourceUrl: '',
+          alpha: !!alpha,
           createdAt: new Date().toISOString()
         };
         await idbSet('blobs', id + ':file', main.blob);
@@ -954,15 +1022,18 @@ async function applyCrop(pid) {
       const canvas = document.createElement('canvas');
       canvas.width = sw; canvas.height = sh;
       canvas.getContext('2d').drawImage(loaded.img, sx, sy, sw, sh, 0, 0, sw, sh);
+      const keepAlpha = !!item.alpha;
       const toBlobQ = (cv, q) => new Promise(res => {
         cv.toBlob(b => {
           if (b && b.type === 'image/webp') return res(b);
+          if (b && b.type === 'image/png') return res(b);
+          if (keepAlpha) return cv.toBlob(b2 => res(b2), 'image/png');
           cv.toBlob(b2 => res(b2), 'image/jpeg', q);
         }, 'image/webp', q);
       });
       const mainBlob = await toBlobQ(canvas, 0.82);
       if (!mainBlob) throw new Error('crop failed');
-      const ext = mainBlob.type === 'image/webp' ? 'webp' : 'jpg';
+      const ext = mainBlob.type === 'image/webp' ? 'webp' : (mainBlob.type === 'image/png' ? 'png' : 'jpg');
       const ts = Math.min(1, THUMB_MAX / Math.max(sw, sh));
       const tc = document.createElement('canvas');
       tc.width = Math.max(1, Math.round(sw * ts)); tc.height = Math.max(1, Math.round(sh * ts));
@@ -978,6 +1049,7 @@ async function applyCrop(pid) {
         thumb: 'thumbs/' + ym + '/' + id + '.' + ext,
         w: sw, h: sh, hash,
         memo: item.memo || '', sourceUrl: item.sourceUrl || '',
+        alpha: keepAlpha,
         createdAt: new Date().toISOString()
       };
       await idbSet('blobs', id + ':file', mainBlob);
@@ -1177,7 +1249,19 @@ async function syncNow(manual) {
 }
 function updateStatusLineSoon() { setTimeout(updateStatusLine, 1600); }
 document.getElementById('syncBtn').addEventListener('click', () => syncNow(true));
-document.getElementById('keyBtn').addEventListener('click', () => {
+/* 「…」メニュー */
+const menuEl = document.getElementById('menu');
+document.getElementById('menuBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  menuEl.classList.toggle('open');
+});
+document.addEventListener('click', (e) => {
+  if (menuEl.classList.contains('open') && !e.target.closest('#menu') && !e.target.closest('#menuBtn')) {
+    menuEl.classList.remove('open');
+  }
+});
+document.getElementById('menuKey').addEventListener('click', () => {
+  menuEl.classList.remove('open');
   const t = askToken();
   if (t) { toast('トークンを保存したよ。「同期」ボタンで同期してね'); }
   updateStatusLine();
