@@ -59,6 +59,7 @@
   .frame {
     position: absolute; cursor: grab; touch-action: none;
     background: #3a3a40; border-radius: 4px;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
     /* 画像にシャドウは付けない（2026-11-24 kura指定） */
   }
   .frame img { width: 100%; height: 100%; display: block; border-radius: 4px; pointer-events: none; object-fit: fill; -webkit-user-drag: none; -webkit-touch-callout: none; }
@@ -70,18 +71,18 @@
      画面固定レイヤー（#frameUi）に一組だけ置く。ズームに依らず常に同じ大きさになり、
      フレーム側の表示切替でiOSにUIの残像が二重に残る問題も起きない（2026-11-24） */
   #frameUi { position: absolute; inset: 0; pointer-events: none; z-index: 50; }
+  /* 消す時は display:none まで落とす（透明化だけだとiOSで切れ端が残ることがあるため） */
   #selToolbar, #cropControls {
-    position: absolute; display: flex; gap: 6px; pointer-events: auto;
+    position: absolute; display: none; gap: 6px; pointer-events: auto;
     transform: translateX(-50%);
-    opacity: 0; visibility: hidden;
   }
-  #selToolbar.on, #cropControls.on { opacity: 1; visibility: visible; }
+  #selToolbar.on, #cropControls.on { display: flex; }
   #resizeHandle {
     position: absolute; width: 24px; height: 24px; border-radius: 50%;
     background: #6f8dff; border: 2px solid #fff; cursor: nwse-resize; touch-action: none;
-    pointer-events: auto; opacity: 0; visibility: hidden;
+    pointer-events: auto; display: none;
   }
-  #resizeHandle.on { opacity: 1; visibility: visible; }
+  #resizeHandle.on { display: block; }
   /* トリミング（スケッチブックと同じ操作感：マスク＋四隅ハンドル＋✓/✕） */
   .frame.cropping { outline: 2px solid #3fbf72; outline-offset: 1px; }
   .crop-mask { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 4; }
@@ -160,7 +161,6 @@
     <div id="selToolbar">
       <div class="tbtn act-dup" title="複製">⧉</div>
       <div class="tbtn act-crop" title="トリミング">✂</div>
-      <div class="tbtn act-open" title="詳細">…</div>
       <div class="tbtn del act-del" title="削除">✕</div>
     </div>
     <div id="resizeHandle"></div>
@@ -445,11 +445,16 @@ function removeFrameEl(pid) {
   el.remove();
   frameEls.delete(pid);
 }
-/* 削除直後にiOSの描画レイヤーが残ることがあるため、再描画を促す */
+/* 操作の終わりに画面全体の再描画を促す（iOSでUIの切れ端が残る対策）。
+   viewport全体の不透明度を一瞬だけ変えると、中身すべての再合成が走る */
 function nudgeRepaint() {
   requestAnimationFrame(() => {
     applyCamera();
-    requestAnimationFrame(() => applyCamera());
+    viewport.style.opacity = '0.999';
+    requestAnimationFrame(() => {
+      viewport.style.opacity = '';
+      applyCamera();
+    });
   });
 }
 function renderAll() {
@@ -502,7 +507,6 @@ function buildFrameEl(p) {
     const type = h.classList.contains('nw') ? 'nw' : h.classList.contains('ne') ? 'ne' : h.classList.contains('sw') ? 'sw' : 'se';
     h.addEventListener('pointerdown', (e) => onCropHandlePointerDown(e, p.pid, type));
   });
-  el.addEventListener('dblclick', (e) => { e.stopPropagation(); if (!el.classList.contains('cropping')) openDetail(p.itemId); });
   return el;
 }
 function selectPlacement(pid) {
@@ -611,7 +615,6 @@ resizeHandle.addEventListener('pointerdown', (e) => {
 });
 selToolbar.querySelector('.act-dup').addEventListener('click', () => { if (selectedPid) duplicatePlacement(selectedPid); });
 selToolbar.querySelector('.act-crop').addEventListener('click', () => { if (selectedPid) startCrop(selectedPid); });
-selToolbar.querySelector('.act-open').addEventListener('click', () => { const p = selectedPid ? placementByPid(selectedPid) : null; if (p) openDetail(p.itemId); });
 selToolbar.querySelector('.act-del').addEventListener('click', () => { if (selectedPid) deletePlacementFlow(selectedPid); });
 cropControlsEl.querySelector('.act-crop-apply').addEventListener('click', () => { if (cropState) applyCrop(cropState.pid); });
 cropControlsEl.querySelector('.act-crop-cancel').addEventListener('click', () => { if (cropState) cancelCrop(cropState.pid); });
@@ -650,6 +653,7 @@ async function onDragEnd(e) {
     const el = frameEls.get(p.pid);
     if (el) refreshFrameImage(p, el);
   }
+  nudgeRepaint();
 }
 
 /* ---------- パン / ピンチ / ホイール ---------- */
@@ -717,6 +721,7 @@ function endViewportPointer(e) {
     if (tap) selectPlacement(tap.pid);   // 軽いタップだった時だけ選択する
     saveLocal();
     for (const p of placements) { const el = frameEls.get(p.pid); if (el) refreshFrameImage(p, el); }
+    nudgeRepaint();
   }
 }
 viewport.addEventListener('pointerup', endViewportPointer);
@@ -736,6 +741,16 @@ viewport.addEventListener('wheel', (e) => {
 /* 長押しの拡大鏡・コールアウト・ジェスチャーズームを抑止する */
 viewport.addEventListener('contextmenu', (e) => e.preventDefault());
 document.addEventListener('gesturestart', (e) => e.preventDefault());
+/* iOSの拡大鏡（選択ルーペ）はタッチイベント側の既定動作でも出ることがあるため、
+   そちらも抑止する。画面固定UI（ボタン類）のタップは対象外（clickを生かすため） */
+viewport.addEventListener('touchstart', (e) => {
+  if (e.target.closest('#frameUi')) return;
+  if (e.cancelable) e.preventDefault();
+}, { passive: false });
+viewport.addEventListener('touchmove', (e) => {
+  if (e.target.closest('#frameUi')) return;
+  if (e.cancelable) e.preventDefault();
+}, { passive: false });
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 </script>
 <script>
@@ -1019,6 +1034,7 @@ function endCropUi(pid) {
     const p = placementByPid(pid);
     if (p) positionFrameEl(p, el);
   }
+  nudgeRepaint();
 }
 function cancelCrop(pid) {
   if (cropState && cropState.pid === pid) endCropUi(pid);
