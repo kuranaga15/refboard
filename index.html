@@ -175,6 +175,8 @@
   #textEditor { position: absolute; display: none; pointer-events: none; z-index: 90; }
   #textEditor.on { display: block; }
   #textInput, #textEditorBtns { pointer-events: auto; }
+  /* ハンドルは入力欄（点線の枠）と同じ箱に付け、その頂点と一致させる */
+  #textInputWrap { position: relative; }
   /* 入力エリア自体の四隅ハンドル: キーボード表示中でも、この囲いを基準に拡縮できるようにする */
   .edit-handle {
     position: absolute; width: 14px; height: 14px; border-radius: 50%;
@@ -347,11 +349,13 @@
       <div class="tbtn apply act-crop-apply" title="適用">✓</div>
     </div>
     <div id="textEditor">
-      <div class="edit-handle" data-corner="nw"></div>
-      <div class="edit-handle" data-corner="ne"></div>
-      <div class="edit-handle" data-corner="sw"></div>
-      <div class="edit-handle" data-corner="se"></div>
-      <textarea id="textInput" rows="3" placeholder="テキスト"></textarea>
+      <div id="textInputWrap">
+        <div class="edit-handle" data-corner="nw"></div>
+        <div class="edit-handle" data-corner="ne"></div>
+        <div class="edit-handle" data-corner="sw"></div>
+        <div class="edit-handle" data-corner="se"></div>
+        <textarea id="textInput" rows="3" placeholder="テキスト"></textarea>
+      </div>
       <div id="textEditorBtns">
         <div class="tbtn del" id="textCancel"><span class="xgl">✕</span></div>
         <div class="tbtn apply" id="textOk">✓</div>
