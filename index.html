@@ -2876,6 +2876,65 @@ document.querySelectorAll('.edit-handle').forEach(h => {
     h.addEventListener('pointercancel', onDragEnd, { once: true });
   });
 });
+/* 入力中、文字がある行より下の余白はドラッグでテキストを移動できるようにする（kura指定）。
+   文字の上は通常通りカーソル移動・選択に使う。文字の描画後の高さは、同じ書式の
+   見えない鏡要素で測る */
+const textMirror = document.createElement('div');
+textMirror.style.cssText = 'position:absolute; left:-9999px; top:0; visibility:hidden; box-sizing:border-box; font-size:16px; line-height:1.4; padding:8px 10px; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; pointer-events:none;';
+document.body.appendChild(textMirror);
+function textContentBottom() {
+  const cs = getComputedStyle(textInputEl);
+  textMirror.style.width = textInputEl.clientWidth + 'px';
+  textMirror.style.fontFamily = cs.fontFamily;
+  textMirror.textContent = textInputEl.value + '\n';
+  return 1.5 + textMirror.offsetHeight;   /* 1.5 = 入力欄のボーダー幅 */
+}
+function startEditorMove(e, srcEl) {
+  if (textEdit.pid) {
+    const p = placementByPid(textEdit.pid);
+    if (!p) return;
+    const start = screenToWorld(e.clientX, e.clientY);
+    beginDragHistory([p]);
+    dragState = { mode: 'move', pid: p.pid, pointerId: e.pointerId, startX: start.x, startY: start.y, origX: p.x, origY: p.y, moved: false };
+    srcEl.setPointerCapture(e.pointerId);
+    srcEl.addEventListener('pointermove', onDragMove);
+    srcEl.addEventListener('pointerup', onDragEnd, { once: true });
+    srcEl.addEventListener('pointercancel', onDragEnd, { once: true });
+  } else {
+    const start = screenToWorld(e.clientX, e.clientY);
+    const bd = { x0: start.x, y0: start.y, wx0: textEdit.wx, wy0: textEdit.wy };
+    const mv = (ev) => {
+      const wpt = screenToWorld(ev.clientX, ev.clientY);
+      textEdit.wx = bd.wx0 + (wpt.x - bd.x0);
+      textEdit.wy = bd.wy0 + (wpt.y - bd.y0);
+      const r2 = viewport.getBoundingClientRect();
+      const wpx = (textEdit.w || 240) * camera.scale, hpx = (textEdit.h || 64) * camera.scale;
+      const cxS = (textEdit.wx - camera.cx) * camera.scale + r2.width / 2;
+      const cyS = (textEdit.wy - camera.cy) * camera.scale + r2.height / 2;
+      textEditorEl.style.left = Math.max(8, Math.min(cxS - wpx / 2, r2.width - wpx - 8)) + 'px';
+      textEditorEl.style.top = Math.max(44, Math.min(cyS - hpx / 2, r2.height - 170)) + 'px';
+    };
+    const up = () => { srcEl.removeEventListener('pointermove', mv); };
+    srcEl.setPointerCapture(e.pointerId);
+    srcEl.addEventListener('pointermove', mv);
+    srcEl.addEventListener('pointerup', up, { once: true });
+    srcEl.addEventListener('pointercancel', up, { once: true });
+  }
+}
+textInputEl.addEventListener('pointerdown', (e) => {
+  if (!textEdit) return;
+  const rect = textInputEl.getBoundingClientRect();
+  if (e.clientY - rect.top <= textContentBottom() + 6) return;   /* 文字の行の上は通常通り */
+  e.preventDefault();
+  e.stopPropagation();
+  startEditorMove(e, textInputEl);
+});
+document.getElementById('textEditorBtns').addEventListener('pointerdown', (e) => {
+  if (!textEdit || e.target !== e.currentTarget) return;   /* ボタン自体ではなく、行の余白部分だけ */
+  e.preventDefault();
+  e.stopPropagation();
+  startEditorMove(e, e.currentTarget);
+});
 /* 編集エリアの外をタップしたら適用して閉じる（トリミングの外側タップと同じ考え方）。
    ただし画面固定UI（拡縮・回転ハンドルやツールバー）の上は閉じない:
    入力モードのままサイズ変更などをできるようにするため */
