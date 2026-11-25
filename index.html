@@ -171,7 +171,7 @@
   .frame.text { background: rgba(0,0,0,.45); border-radius: 4px; }
   .text-body {
     position: absolute; inset: 0; padding: 4px 6px; box-sizing: border-box;
-    white-space: pre-wrap; word-break: break-word; overflow: hidden;
+    white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; overflow: hidden;
     line-height: 1.35; color: #fff; font-family: inherit;
   }
   /* テキスト選択中はトリミング系のボタンを出さない */
@@ -203,7 +203,7 @@
   /* 入力欄は点線の四角で囲い、中はテキスト本体と同じ半透明の黒（白文字が読めるように） */
   #textInput {
     width: 100%; box-sizing: border-box; font-size: 16px; font-family: inherit; line-height: 1.4;
-    padding: 8px 10px; border-radius: 0; border: 1.5px dashed #6f8dff; outline: none; resize: none;
+    padding: 8px 10px; border-radius: 0; border: 1.5px dashed #6f8dff; outline: none; resize: none; overflow-wrap: anywhere;
     background: rgba(0,0,0,.45); color: #fff;
   }
   html.canvas-light #textInput { background: rgba(0,0,0,.45); color: #fff; border-color: #656565; }
@@ -2994,7 +2994,7 @@ function textContentBottom() {
    将来のサイズ変更ボタンは、この値を変える想定。fontSize を持たない旧テキストは、
    初回編集時に今の見た目のサイズを測って固定する（測り方は枠側の自動調整と同じ） */
 const fitMirror = document.createElement('div');
-fitMirror.style.cssText = 'position:absolute; left:-9999px; top:0; visibility:hidden; box-sizing:border-box; padding:4px 6px; line-height:1.35; white-space:pre-wrap; word-break:break-word; overflow:hidden; pointer-events:none;';
+fitMirror.style.cssText = 'position:absolute; left:-9999px; top:0; visibility:hidden; box-sizing:border-box; padding:4px 6px; line-height:1.35; white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; overflow:hidden; pointer-events:none;';
 document.body.appendChild(fitMirror);
 function fittedFontWorld(wW, hW, text) {
   fitMirror.style.width = wW + 'px';
