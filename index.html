@@ -2606,6 +2606,30 @@ function repinSoon() {
   setTimeout(() => { pinBar(); pinTabs(); }, 60);
   setTimeout(() => { pinBar(); pinTabs(); }, 400);
 }
+/* 見張り: イベント頼みだと取りこぼすので、バーの実際の表示位置を実測し、
+   表示領域の端から2px以上ズレていたら位置を取り直す。それでも直らない時は
+   transformを一度外して描画し直す（kura報告 2026-11-26: イベント方式では直らなかった） */
+let barStuck = 0;
+function barsAligned() {
+  const vv = window.visualViewport;
+  if (!vv) return true;
+  const br = barEl.getBoundingClientRect();
+  const tr = tabEl.getBoundingClientRect();
+  return Math.abs(br.bottom - vv.height) <= 2 && Math.abs(tr.top) <= 2;
+}
+function hardRepin() {
+  barEl.style.transform = 'none';
+  tabEl.style.transform = 'none';
+  void barEl.offsetHeight;
+  pinBar();
+  pinTabs();
+}
+setInterval(() => {
+  if (document.hidden || barsAligned()) { barStuck = 0; return; }
+  barStuck++;
+  if (barStuck >= 2) { hardRepin(); barStuck = 0; } else { pinBar(); pinTabs(); }
+}, 700);
+document.addEventListener('pointerdown', () => { if (!barsAligned()) { pinBar(); pinTabs(); } }, true);
 window.addEventListener('load', () => { pinBar(); pinTabs(); setTimeout(() => { pinBar(); pinTabs(); }, 300); });
 pinBar();
 pinTabs();
