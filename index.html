@@ -2817,6 +2817,7 @@ function layoutTextEditor() {
   textEditorEl.style.left = Math.max(8, Math.min(minX, r.width - width - 8)) + 'px';
   textEditorEl.style.top = Math.max(44, Math.min(minY, r.height - 170)) + 'px';
   textEditorEl.style.width = width + 'px';
+  syncEditorFont();   /* 拡縮・回転のドラッグ中も、文字サイズを枠に追随させる */
 }
 function openTextEditor(pid, wx, wy) {
   const r = viewport.getBoundingClientRect();
@@ -2848,6 +2849,8 @@ function openTextEditor(pid, wx, wy) {
   textEditorEl.classList.toggle('is-new', !pid);
   textEditorEl.classList.add('on');
   document.body.classList.add('text-editing');
+  editorFontKey = '';
+  syncEditorFont();   /* 入力中の文字サイズを、確定後のサイズと一致させる */
   layoutFrameUi();   /* 枠側のUIを消して、入力エリア側だけにする */
   setTimeout(() => { textInputEl.focus(); }, 30);
 }
@@ -2921,6 +2924,7 @@ document.querySelectorAll('.edit-handle').forEach(h => {
         textEditorEl.style.left = Math.max(8, Math.min(cxS - wpx / 2, r2.width - wpx - 8)) + 'px';
         textEditorEl.style.top = Math.max(44, Math.min(cyS - hpx / 2, r2.height - 170)) + 'px';
         textInputEl.style.height = hpx + 'px';
+        syncEditorFont();
       };
       const up = () => { h.removeEventListener('pointermove', mv); };
       h.setPointerCapture(e.pointerId);
@@ -2964,9 +2968,43 @@ function textContentBottom() {
   const cs = getComputedStyle(textInputEl);
   textMirror.style.width = textInputEl.clientWidth + 'px';
   textMirror.style.fontFamily = cs.fontFamily;
+  textMirror.style.fontSize = cs.fontSize;
+  textMirror.style.lineHeight = cs.lineHeight;
   textMirror.textContent = textInputEl.value + '\n';
   return 1.5 + textMirror.offsetHeight;   /* 1.5 = 入力欄のボーダー幅 */
 }
+/* 入力中の文字サイズを、確定後に枠側で自動調整されるサイズと一致させる（kura指定）。
+   枠側の fitText と同じ物差し（.text-body と同じ書式の鏡要素で二分探索）で測り、
+   画面上の大きさに直して入力欄へ反映する。打っている最中も追随させる */
+const fitMirror = document.createElement('div');
+fitMirror.style.cssText = 'position:absolute; left:-9999px; top:0; visibility:hidden; box-sizing:border-box; padding:4px 6px; line-height:1.35; white-space:pre-wrap; word-break:break-word; overflow:hidden; pointer-events:none;';
+document.body.appendChild(fitMirror);
+let editorFontKey = '';
+function syncEditorFont() {
+  if (!textEdit) return;
+  let wW, hW;
+  if (textEdit.pid) {
+    const p = placementByPid(textEdit.pid);
+    if (!p) return;
+    wW = p.w; hW = p.h;
+  } else { wW = textEdit.w || 240; hW = textEdit.h || 64; }
+  const key = wW + '|' + hW + '|' + camera.scale + '|' + textInputEl.value;
+  if (key === editorFontKey) return;
+  editorFontKey = key;
+  fitMirror.style.width = wW + 'px';
+  fitMirror.style.height = hW + 'px';
+  fitMirror.style.fontFamily = getComputedStyle(textInputEl).fontFamily;
+  fitMirror.textContent = textInputEl.value || ' ';
+  let lo = 6, hi = Math.max(9, hW);
+  for (let i = 0; i < 12; i++) {
+    const mid = (lo + hi) / 2;
+    fitMirror.style.fontSize = mid + 'px';
+    if (fitMirror.scrollHeight <= hW + 1 && fitMirror.scrollWidth <= wW + 1) lo = mid; else hi = mid;
+  }
+  textInputEl.style.fontSize = Math.max(9, lo * camera.scale) + 'px';
+  textInputEl.style.lineHeight = '1.35';
+}
+textInputEl.addEventListener('input', syncEditorFont);
 function startEditorMove(e, srcEl) {
   if (textEdit.pid) {
     const p = placementByPid(textEdit.pid);
