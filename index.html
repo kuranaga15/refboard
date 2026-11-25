@@ -58,8 +58,8 @@
   /* ライトモードではタブバーの地色もキャンバスの背景色に合わせる（kura指定） */
   html.canvas-light #tabbar { background: var(--canvas-bg); }
   /* ライトモードのタブは反転させる: 非アクティブ=グレーの地に白文字、アクティブ=白の地に濃い文字（kura指定） */
-  html.canvas-light .btab { background: #6f6f76; color: #fff; }
-  html.canvas-light .btab.on { background: #ffffff; color: #2b2b30; }
+  html.canvas-light .btab { background: #656565; color: #fff; border: 1px solid #B3B3B3; }
+  html.canvas-light .btab.on { background: #C6C6C6; color: #2b2b30; border: 1px solid #656565; }
   html.canvas-light #hint { color: #83838d; }
   /* 下部バー: ヘッダーを廃止し、独立ボタンを画面下に置く（2026-11-24 kura指定のモック再現）。
      バー自体はタッチを受けず、ボタンだけが受ける */
@@ -105,13 +105,13 @@
     background: rgba(24,24,28,.92); transform-origin: 0 0; box-sizing: border-box;
   }
   .btab {
-    flex: 1 1 0; min-width: 0; padding: 4px 6px; border-radius: 999px;
+    flex: 1 1 0; min-width: 0; padding: 4px 6px; border-radius: 12px 12px 0 0; box-sizing: border-box;
     background: transparent; border: none; color: #a5a5ad;
     font-size: 13px; font-family: inherit; text-align: center;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
   }
-  /* アクティブタブはタブバーの下端まで伸ばして、見ているページの見出しのように見せる（kura指定） */
-  .btab.on { background: #6f6f76; color: #fff; font-weight: 600; border-radius: 8px 8px 0 0; }
+  /* タブは上が角丸・下が四角のプリン状。アクティブタブはタブバーの下端まで届いて見出しのように見える（kura指定） */
+  .btab.on { background: #6f6f76; color: #fff; font-weight: 600; }
   /* 範囲選択ボタンと複数選択まわり */
   #rangeBtn svg { width: 19px; height: 19px; display: block; pointer-events: none; }
   .bbtn.on { background: #54545e; border-color: #e8e8ec; }
