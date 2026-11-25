@@ -729,6 +729,7 @@ function positionFrameEl(p, el) {
   el.classList.toggle('alpha', !!(pItem && pItem.alpha));
   if (pItem && pItem.kind === 'text') fitText(p, el);
   layoutFrameUi();
+  if (typeof layoutTextEditor === 'function') layoutTextEditor();   /* 編集中はエディタを枠に追随させる */
 }
 function buildFrameEl(p) {
   const el = document.createElement('div');
@@ -1260,7 +1261,8 @@ viewport.addEventListener('pointerdown', (e) => {
     const itT = fpT ? itemOf(fpT) : null;
     textTapCandidate = {
       pointerId: e.pointerId, x: e.clientX, y: e.clientY, t: Date.now(),
-      pid: (itT && itT.kind === 'text') ? fpT.pid : null, wx: wptT.x, wy: wptT.y
+      pid: (itT && itT.kind === 'text') ? fpT.pid : null, wx: wptT.x, wy: wptT.y,
+      wasSel: fpT ? (fpT.pid === selectedPid) : false
     };
   }
   if (rangeMode) {
@@ -1358,7 +1360,11 @@ function endViewportPointer(e) {
     textTapCandidate = null;
     if (pointers.size === 1 && (Date.now() - tc.t) <= 500 &&
         Math.hypot(e.clientX - tc.x, e.clientY - tc.y) <= 10) {
-      if (tc.pid) openTextEditor(tc.pid);        /* テキストをタップしたらその場で編集 */
+      if (tc.pid) {
+        /* 既存テキストは1回目のタップでは選択だけ。編集は選択中のもう一度のタップで開く */
+        if (tc.wasSel) openTextEditor(tc.pid);
+        else selectPlacement(tc.pid);
+      }
       else openTextEditor(null, tc.wx, tc.wy);   /* 空き場所のタップで新規テキスト */
     }
   }
@@ -1639,6 +1645,7 @@ function duplicatePlacement(pid) {
 async function deletePlacementFlow(pid, record = true) {
   const p = placementByPid(pid);
   if (!p) return;
+  if (textEdit && textEdit.pid === pid) closeTextEditor();   /* 編集中のテキストが消えたらエディタも閉じる */
   if (record) pushHistory();
   const others = placements.filter(q => q.itemId === p.itemId && q.pid !== pid);
   placements = placements.filter(q => q.pid !== pid);
@@ -2697,39 +2704,48 @@ textBtn.addEventListener('click', () => {
     if (cropState) cancelCrop(cropState.pid);
   }
 });
+/* 編集中のエディタを、対象テキストの画面上の外接矩形に合わせて置く。
+   拡縮・回転のドラッグ中も positionFrameEl 経由で呼ばれ、枠に追随する */
+function layoutTextEditor() {
+  if (!textEdit || !textEdit.pid) return;
+  const p = placementByPid(textEdit.pid);
+  if (!p) return;
+  const r = viewport.getBoundingClientRect();
+  const th = (p.angle || 0) * Math.PI / 180, cosT = Math.cos(th), sinT = Math.sin(th);
+  const hw = p.w * camera.scale / 2, hh = p.h * camera.scale / 2;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity;
+  for (const [lx, ly] of [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]]) {
+    const sx2 = (p.x - camera.cx) * camera.scale + r.width / 2 + lx * cosT - ly * sinT;
+    const sy2 = (p.y - camera.cy) * camera.scale + r.height / 2 + lx * sinT + ly * cosT;
+    minX = Math.min(minX, sx2); minY = Math.min(minY, sy2); maxX = Math.max(maxX, sx2);
+  }
+  let width = Math.max(180, maxX - minX);
+  width = Math.min(width, r.width - 16);
+  textEditorEl.style.left = Math.max(8, Math.min(minX, r.width - width - 8)) + 'px';
+  textEditorEl.style.top = Math.max(44, Math.min(minY, r.height - 170)) + 'px';
+  textEditorEl.style.width = width + 'px';
+}
 function openTextEditor(pid, wx, wy) {
   const r = viewport.getBoundingClientRect();
-  let left, top, width;
   if (pid) {
     const p = placementByPid(pid);
     if (!p) return;
     selectPlacement(pid);
-    const th = (p.angle || 0) * Math.PI / 180, cosT = Math.cos(th), sinT = Math.sin(th);
-    const hw = p.w * camera.scale / 2, hh = p.h * camera.scale / 2;
-    let minX = Infinity, minY = Infinity, maxX = -Infinity;
-    for (const [lx, ly] of [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]]) {
-      const sx2 = (p.x - camera.cx) * camera.scale + r.width / 2 + lx * cosT - ly * sinT;
-      const sy2 = (p.y - camera.cy) * camera.scale + r.height / 2 + lx * sinT + ly * cosT;
-      minX = Math.min(minX, sx2); minY = Math.min(minY, sy2); maxX = Math.max(maxX, sx2);
-    }
-    width = Math.max(180, maxX - minX);
-    left = minX; top = minY;
     const it = itemOf(p);
     textInputEl.value = it ? (it.text || '') : '';
     textEdit = { pid };
+    layoutTextEditor();
   } else {
-    width = Math.max(180, 240 * camera.scale);
-    left = (wx - camera.cx) * camera.scale + r.width / 2 - width / 2;
-    top = (wy - camera.cy) * camera.scale + r.height / 2 - 30;
+    let width = Math.max(180, 240 * camera.scale);
+    width = Math.min(width, r.width - 16);
+    const left = (wx - camera.cx) * camera.scale + r.width / 2 - width / 2;
+    const top = (wy - camera.cy) * camera.scale + r.height / 2 - 30;
     textInputEl.value = '';
     textEdit = { wx, wy };
+    textEditorEl.style.left = Math.max(8, Math.min(left, r.width - width - 8)) + 'px';
+    textEditorEl.style.top = Math.max(44, Math.min(top, r.height - 170)) + 'px';
+    textEditorEl.style.width = width + 'px';
   }
-  width = Math.min(width, r.width - 16);
-  left = Math.max(8, Math.min(left, r.width - width - 8));
-  top = Math.max(44, Math.min(top, r.height - 170));
-  textEditorEl.style.left = left + 'px';
-  textEditorEl.style.top = top + 'px';
-  textEditorEl.style.width = width + 'px';
   textEditorEl.classList.add('on');
   setTimeout(() => { textInputEl.focus(); }, 30);
 }
@@ -2773,9 +2789,11 @@ function applyTextEdit() {
 }
 document.getElementById('textOk').addEventListener('click', applyTextEdit);
 document.getElementById('textCancel').addEventListener('click', closeTextEditor);
-/* 編集エリアの外をタップしたら適用して閉じる（トリミングの外側タップと同じ考え方） */
+/* 編集エリアの外をタップしたら適用して閉じる（トリミングの外側タップと同じ考え方）。
+   ただし画面固定UI（拡縮・回転ハンドルやツールバー）の上は閉じない:
+   入力モードのままサイズ変更などをできるようにするため */
 document.addEventListener('pointerdown', (e) => {
-  if (textEdit && !e.target.closest('#textEditor')) applyTextEdit();
+  if (textEdit && !e.target.closest('#frameUi, #multiUi')) applyTextEdit();
 }, true);
 document.getElementById('fitBtn').addEventListener('click', () => {
   if (!placements.length) { camera = { cx: 0, cy: 0, scale: 1 }; applyCamera(); return; }
