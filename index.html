@@ -127,6 +127,13 @@
     pointer-events: auto; display: none;
   }
   #groupDel { position: absolute; transform: translateX(-50%); pointer-events: auto; display: none; }
+  /* グループ回転ゾーン: 単体と同じく、四隅の拡縮ハンドルから45°外側の透明な範囲。
+     ドラッグすると選択全体が、囲いの中心を基点に回転する */
+  .group-rotate {
+    position: absolute; width: 16px; height: 24px; box-sizing: border-box;
+    background: transparent; cursor: grab; touch-action: none;
+    pointer-events: auto; display: none;
+  }
   .frame.multi { outline: 2px solid #6f8dff; outline-offset: 1px; }
   /* 「…」メニュー（たまにしか使わない機能の置き場所。今後増える機能もここへ入れる） */
   #menu {
@@ -175,6 +182,10 @@
   #textEditor { position: absolute; display: none; pointer-events: none; z-index: 90; }
   #textEditor.on { display: block; }
   #textInput, #textEditorBtns { pointer-events: auto; }
+  /* 入力中のドラッグでキャンバスがスクロールしないようにする（kura指定） */
+  #textInput, #textEditorBtns, .edit-handle { touch-action: none; }
+  /* テキスト編集中は、枠側の選択アウトラインを消して二重に見えないようにする */
+  .frame.editing { outline: none; }
   /* ハンドルは入力欄（点線の枠）と同じ箱に付け、その頂点と一致させる */
   #textInputWrap { position: relative; }
   /* 入力エリア自体の四隅ハンドル: キーボード表示中でも、この囲いを基準に拡縮できるようにする */
@@ -192,7 +203,7 @@
   /* 入力欄は点線の四角で囲い、中はテキスト本体と同じ半透明の黒（白文字が読めるように） */
   #textInput {
     width: 100%; box-sizing: border-box; font-size: 16px; font-family: inherit; line-height: 1.4;
-    padding: 8px 10px; border-radius: 10px; border: 1.5px dashed #6f8dff; outline: none; resize: none;
+    padding: 8px 10px; border-radius: 0; border: 1.5px dashed #6f8dff; outline: none; resize: none;
     background: rgba(0,0,0,.45); color: #fff;
   }
   html.canvas-light #textInput { background: rgba(0,0,0,.45); color: #fff; border-color: #656565; }
@@ -363,7 +374,7 @@
     </div>
   </div>
   <div id="selRect"></div>
-  <div id="multiUi"><div id="groupBox"></div><div class="group-handle" data-corner="nw"></div><div class="group-handle" data-corner="ne"></div><div class="group-handle" data-corner="sw"></div><div class="group-handle" data-corner="se"></div><div class="tbtn del" id="groupDel" title="選択を削除"><span class="xgl">✕</span></div></div>
+  <div id="multiUi"><div id="groupBox"></div><div class="group-handle" data-corner="nw"></div><div class="group-handle" data-corner="ne"></div><div class="group-handle" data-corner="sw"></div><div class="group-handle" data-corner="se"></div><div class="group-rotate" data-corner="nw"></div><div class="group-rotate" data-corner="ne"></div><div class="group-rotate" data-corner="sw"></div><div class="group-rotate" data-corner="se"></div><div class="tbtn del" id="groupDel" title="選択を削除"><span class="xgl">✕</span></div></div>
   <div id="hint">左下の ＋ から画像を取り込んでね<br>ドラッグで移動、ピンチで拡大縮小だよ</div>
 </div>
 <div id="detail">
@@ -887,6 +898,9 @@ function layoutFrameUi() {
   else if (freeState) { target = placementByPid(freeState.pid); mode = 'free'; }
   else { const sp = singleUiPid(); if (sp) { target = placementByPid(sp); mode = 'sel'; } }
   if (!target) mode = 'none';
+  /* テキスト入力中は枠側のUI（ツールバー・拡縮・回転）を出さない。
+     入力エリア側のハンドルとボタンだけにして、二重表示を解消する（kura指定） */
+  if (document.body.classList.contains('text-editing')) { target = null; mode = 'none'; }
   if (mode !== uiMode) {
     if (uiMode === 'sel') { flushHidden(selToolbar); resizeHandles.forEach(h => flushHidden(h)); rotateZones.forEach(z => flushHidden(z)); }
     if (uiMode === 'crop') { flushHidden(cropControlsEl); }
@@ -1055,6 +1069,7 @@ async function onGroupMoveEnd(e) {
 /* 複数選択中は、選択全体を囲う四角と右下ハンドル、下部中央に✕を1つ出す */
 const groupBoxEl = document.getElementById('groupBox');
 const groupHandles = [...document.querySelectorAll('.group-handle')];
+const groupRotateZones = [...document.querySelectorAll('.group-rotate')];
 const groupDelEl = document.getElementById('groupDel');
 function layoutMultiUi() {
   if (!multiUi) return;
@@ -1064,6 +1079,7 @@ function layoutMultiUi() {
   if (!b) {
     groupBoxEl.style.display = 'none';
     groupHandles.forEach(h => h.style.display = 'none');
+    groupRotateZones.forEach(z => z.style.display = 'none');
     groupDelEl.style.display = 'none';
     return;
   }
@@ -1076,11 +1092,21 @@ function layoutMultiUi() {
   groupBoxEl.style.top = top + 'px';
   groupBoxEl.style.width = w + 'px';
   groupBoxEl.style.height = h + 'px';
-  groupHandles.forEach(h => {
-    const c = h.dataset.corner;
-    h.style.display = 'block';
-    h.style.left = ((c.includes('e') ? left + w : left) - 7) + 'px';
-    h.style.top = ((c.includes('s') ? top + h : top) - 7) + 'px';
+  groupHandles.forEach(hd => {
+    const c = hd.dataset.corner;
+    hd.style.display = 'block';
+    hd.style.left = ((c.includes('e') ? left + w : left) - 7) + 'px';
+    hd.style.top = ((c.includes('s') ? top + h : top) - 7) + 'px';
+  });
+  groupRotateZones.forEach(z => {
+    const c = z.dataset.corner;
+    const sx = c.includes('e') ? 1 : -1, sy = c.includes('s') ? 1 : -1;
+    const cxp = (c.includes('e') ? left + w : left) + sx * 13.4;
+    const cyp = (c.includes('s') ? top + h : top) + sy * 13.4;
+    z.style.display = 'block';
+    z.style.left = (cxp - 8) + 'px';
+    z.style.top = (cyp - 12) + 'px';
+    z.style.transform = (c === 'nw' || c === 'se') ? 'rotate(-45deg)' : 'rotate(45deg)';
   });
   groupDelEl.style.display = 'flex';
   groupDelEl.style.left = (left + w / 2) + 'px';
@@ -1112,6 +1138,51 @@ groupHandles.forEach(h => {
     h.addEventListener('pointercancel', onGroupDragEnd, { once: true });
   });
 });
+/* グループ回転: 四隅の外側のゾーンをドラッグすると、選択全体が囲いの中心を基点に回り、
+   各画像も同じ角度だけ回転する（単体の回転と同じ操作感。kura指定） */
+let groupRotate = null;
+groupRotateZones.forEach(z => {
+  z.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const b = multiBounds();
+    if (!b) return;
+    const r = viewport.getBoundingClientRect();
+    const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
+    const ccx = (cx - camera.cx) * camera.scale + r.width / 2;
+    const ccy = (cy - camera.cy) * camera.scale + r.height / 2;
+    const orig = new Map();
+    for (const pid of multiSel) { const q = placementByPid(pid); if (q) orig.set(pid, { x: q.x, y: q.y, angle: q.angle || 0 }); }
+    beginDragHistory([...orig.keys()].map(id => placementByPid(id)).filter(Boolean));
+    groupRotate = { pointerId: e.pointerId, ccx, ccy, cx, cy, orig, startPtr: Math.atan2(e.clientY - ccy, e.clientX - ccx) };
+    z.setPointerCapture(e.pointerId);
+    z.addEventListener('pointermove', onGroupRotateMove);
+    z.addEventListener('pointerup', onGroupRotateEnd, { once: true });
+    z.addEventListener('pointercancel', onGroupRotateEnd, { once: true });
+  });
+});
+function onGroupRotateMove(e) {
+  if (!groupRotate || e.pointerId !== groupRotate.pointerId) return;
+  const cur = Math.atan2(e.clientY - groupRotate.ccy, e.clientX - groupRotate.ccx);
+  const d = (cur - groupRotate.startPtr) * 180 / Math.PI;
+  const th = d * Math.PI / 180, cos = Math.cos(th), sin = Math.sin(th);
+  for (const [pid, o] of groupRotate.orig) {
+    const p = placementByPid(pid);
+    if (!p) continue;
+    const dx = o.x - groupRotate.cx, dy = o.y - groupRotate.cy;
+    p.x = groupRotate.cx + dx * cos - dy * sin;
+    p.y = groupRotate.cy + dx * sin + dy * cos;
+    p.angle = ((o.angle + d + 180) % 360 + 360) % 360 - 180;
+    const el = frameEls.get(pid);
+    if (el) positionFrameEl(p, el);
+  }
+  layoutMultiUi();
+}
+async function onGroupRotateEnd(e) {
+  if (!groupRotate) return;
+  groupRotate = null;
+  await settleMultiDrag();
+}
 groupDelEl.addEventListener('click', async () => {
   const pids = [...multiSel];
   if (!pids.length) return;
@@ -2757,6 +2828,8 @@ function openTextEditor(pid, wx, wy) {
     textInputEl.value = it ? (it.text || '') : '';
     textInputEl.style.height = '';
     textEdit = { pid };
+    const fel = frameEls.get(pid);
+    if (fel) fel.classList.add('editing');
     layoutTextEditor();
   } else {
     /* 幅は「ワールド幅 × scale」で一貫させる。px側の最小幅(180)を別に効かせると、
@@ -2774,11 +2847,16 @@ function openTextEditor(pid, wx, wy) {
   }
   textEditorEl.classList.toggle('is-new', !pid);
   textEditorEl.classList.add('on');
+  document.body.classList.add('text-editing');
+  layoutFrameUi();   /* 枠側のUIを消して、入力エリア側だけにする */
   setTimeout(() => { textInputEl.focus(); }, 30);
 }
 function closeTextEditor() {
   textEdit = null;
   textEditorEl.classList.remove('on');
+  document.body.classList.remove('text-editing');
+  document.querySelectorAll('.frame.editing').forEach(el => el.classList.remove('editing'));
+  layoutFrameUi();
 }
 function applyTextEdit() {
   if (!textEdit) return;
