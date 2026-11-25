@@ -106,7 +106,7 @@
   }
   .btab {
     flex: 1 1 0; min-width: 0; padding: 2px 6px; border-radius: 12px 12px 0 0; box-sizing: border-box;
-    background: transparent; border: 1px solid #878787; color: #a5a5ad;
+    background: transparent; border: 1px solid #878787; border-bottom: none; color: #a5a5ad;
     font-size: 12px; font-family: inherit; text-align: center;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
   }
@@ -181,15 +181,14 @@
   .resize-handle::after, .group-handle::after, .crop-handle::after {
     content: ''; position: absolute; inset: -45%; border-radius: 50%;
   }
-  /* 回転ゾーン: 四隅のハンドルから45°外側に突き出す小さな棒（長さ8px・幅4px、kura指定）。
-     ドラッグすると画像の中心を基点に回転する。タップ範囲だけ当たり判定を広げる */
+  /* 回転ゾーン: 四隅のハンドルから45°外側にある透明なタップ範囲（kura指定で当初8px×4px→2倍に拡大し16px×8px）。
+     見た目のハンドルは無く、ドラッグすると画像の中心を基点に回転する */
   .rotate-zone {
-    position: absolute; width: 8px; height: 4px; border-radius: 2px; box-sizing: border-box;
-    background: #6f8dff; border: 1px solid #fff; cursor: grab; touch-action: none;
+    position: absolute; width: 16px; height: 8px; box-sizing: border-box;
+    background: transparent; cursor: grab; touch-action: none;
     pointer-events: auto; display: none;
   }
   .rotate-zone.on { display: block; }
-  .rotate-zone::after { content: ''; position: absolute; inset: -8px -6px; }
   /* トリミング（スケッチブックと同じ操作感：マスク＋四隅ハンドル＋✓/✕） */
   .frame.cropping { outline: 2px solid #3fbf72; outline-offset: 1px; }
   /* フリーフォーム切り取り（なぞった軌跡をその場で見せる） */
