@@ -181,7 +181,7 @@
     background: #6f8dff; border: 2px solid #fff; z-index: 5;
     pointer-events: auto; touch-action: none; display: none;
   }
-  #textEditor.on:not(.is-new) .edit-handle { display: block; }
+  #textEditor.on .edit-handle { display: block; }
   .edit-handle[data-corner="nw"] { left: -7px; top: -7px; cursor: nwse-resize; }
   .edit-handle[data-corner="ne"] { right: -7px; top: -7px; cursor: nesw-resize; }
   .edit-handle[data-corner="sw"] { left: -7px; bottom: -7px; cursor: nesw-resize; }
@@ -2751,20 +2751,22 @@ function openTextEditor(pid, wx, wy) {
     selectPlacement(pid);
     const it = itemOf(p);
     textInputEl.value = it ? (it.text || '') : '';
+    textInputEl.style.height = '';
     textEdit = { pid };
     layoutTextEditor();
   } else {
     let width = Math.max(180, 240 * camera.scale);
     width = Math.min(width, r.width - 16);
     const left = (wx - camera.cx) * camera.scale + r.width / 2 - width / 2;
-    const top = (wy - camera.cy) * camera.scale + r.height / 2 - 30;
+    const top = (wy - camera.cy) * camera.scale + r.height / 2 - (64 * camera.scale) / 2;
     textInputEl.value = '';
-    textEdit = { wx, wy };
+    textInputEl.style.height = (64 * camera.scale) + 'px';
+    textEdit = { wx, wy, w: 240, h: 64 };   /* 新規はまだ配置が無いので、箱の大きさをここで保持する */
     textEditorEl.style.left = Math.max(8, Math.min(left, r.width - width - 8)) + 'px';
     textEditorEl.style.top = Math.max(44, Math.min(top, r.height - 170)) + 'px';
     textEditorEl.style.width = width + 'px';
   }
-  textEditorEl.classList.toggle('is-new', !pid);   /* 新規作成中は拡縮ハンドルを出さない（まだ配置が無いため） */
+  textEditorEl.classList.toggle('is-new', !pid);
   textEditorEl.classList.add('on');
   setTimeout(() => { textInputEl.focus(); }, 30);
 }
@@ -2795,9 +2797,10 @@ function applyTextEdit() {
   } else {
     if (!val.trim()) return;
     pushHistory();
-    const it = { id: 't-' + makeId(), kind: 'text', text: val, w: 240, h: 64 };
+    const bw = ed.w || 240, bh = ed.h || 64;
+    const it = { id: 't-' + makeId(), kind: 'text', text: val, w: bw, h: bh };
     items.set(it.id, it);
-    const np = { pid: 'p-' + makeId(), itemId: it.id, x: ed.wx, y: ed.wy, w: 240, h: 64, angle: 0, z: ++zCounter, u: Date.now() };
+    const np = { pid: 'p-' + makeId(), itemId: it.id, x: ed.wx, y: ed.wy, w: bw, h: bh, angle: 0, z: ++zCounter, u: Date.now() };
     placements.push(np);
     metaDirty = true;
     renderAll();
@@ -2808,13 +2811,40 @@ function applyTextEdit() {
 }
 document.getElementById('textOk').addEventListener('click', applyTextEdit);
 document.getElementById('textCancel').addEventListener('click', closeTextEditor);
-/* 入力エリア四隅のハンドル: 編集中のテキスト配置を、その場で拡縮する。
-   通常の拡縮ハンドルと同じ計算（対角固定・ローカル座標）で dragState を組み立てる */
+/* 入力エリア四隅のハンドル: 入力中のその場で箱の大きさを変える。
+   既存テキストは通常の拡縮と同じ計算（対角固定・ローカル座標）で配置を拡縮し、
+   新規テキストはまだ配置が無いので、入力エリアの箱自体を拡縮して大きさを保持する */
 document.querySelectorAll('.edit-handle').forEach(h => {
   h.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
     e.preventDefault();
-    if (!textEdit || !textEdit.pid) return;
+    if (!textEdit) return;
+    if (!textEdit.pid) {
+      /* 新規作成中: 中心を固定して箱を拡縮する */
+      const sx2 = h.dataset.corner.includes('e') ? 1 : -1;
+      const sy2 = h.dataset.corner.includes('s') ? 1 : -1;
+      const startWpt = screenToWorld(e.clientX, e.clientY);
+      const bd = { x0: startWpt.x, y0: startWpt.y, w0: textEdit.w || 240, h0: textEdit.h || 64, sx: sx2, sy: sy2 };
+      const mv = (ev) => {
+        const wpt = screenToWorld(ev.clientX, ev.clientY);
+        textEdit.w = Math.max(60, bd.w0 + 2 * (wpt.x - bd.x0) * bd.sx);
+        textEdit.h = Math.max(32, bd.h0 + 2 * (wpt.y - bd.y0) * bd.sy);
+        const r2 = viewport.getBoundingClientRect();
+        const wpx = textEdit.w * camera.scale, hpx = textEdit.h * camera.scale;
+        const cxS = (textEdit.wx - camera.cx) * camera.scale + r2.width / 2;
+        const cyS = (textEdit.wy - camera.cy) * camera.scale + r2.height / 2;
+        textEditorEl.style.width = wpx + 'px';
+        textEditorEl.style.left = Math.max(8, Math.min(cxS - wpx / 2, r2.width - wpx - 8)) + 'px';
+        textEditorEl.style.top = Math.max(44, Math.min(cyS - hpx / 2, r2.height - 170)) + 'px';
+        textInputEl.style.height = hpx + 'px';
+      };
+      const up = () => { h.removeEventListener('pointermove', mv); };
+      h.setPointerCapture(e.pointerId);
+      h.addEventListener('pointermove', mv);
+      h.addEventListener('pointerup', up, { once: true });
+      h.addEventListener('pointercancel', up, { once: true });
+      return;
+    }
     const p = placementByPid(textEdit.pid);
     if (!p) return;
     const c = h.dataset.corner;
