@@ -58,8 +58,8 @@
   /* ライトモードではタブバーの地色もキャンバスの背景色に合わせる（kura指定） */
   html.canvas-light #tabbar { background: var(--canvas-bg); }
   /* ライトモードのタブは反転させる: 非アクティブ=グレーの地に白文字、アクティブ=白の地に濃い文字（kura指定） */
-  html.canvas-light .btab { background: #656565; color: #fff; border: 1px solid #B3B3B3; }
-  html.canvas-light .btab.on { background: #C6C6C6; color: #2b2b30; border: 1px solid #656565; }
+  html.canvas-light .btab { background: var(--canvas-bg); color: #2b2b30; border: 1px solid #B3B3B3; border-bottom: none; }
+  html.canvas-light .btab.on { background: #C6C6C6; color: #2b2b30; border: 1px solid #656565; border-bottom: none; }
   html.canvas-light #hint { color: #83838d; }
   /* 下部バー: ヘッダーを廃止し、独立ボタンを画面下に置く（2026-11-24 kura指定のモック再現）。
      バー自体はタッチを受けず、ボタンだけが受ける */
