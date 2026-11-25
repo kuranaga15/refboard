@@ -719,6 +719,7 @@ function nudgeRepaint() {
 }
 function renderAll() {
   const alive = new Set();
+  withUiBatch(() => {
   for (const p of placements) {
     alive.add(p.pid);
     let el = frameEls.get(p.pid);
@@ -726,6 +727,7 @@ function renderAll() {
     positionFrameEl(p, el);
     refreshFrameImage(p, el);
   }
+  });
   for (const [pid] of [...frameEls]) {
     if (!alive.has(pid)) removeFrameEl(pid);
   }
@@ -757,6 +759,16 @@ function fitText(p, el) {
   }
   body.style.fontSize = lo + 'px';
 }
+/* 一括配置中は、選択UIの位置計算（レイアウト読み取りを伴う）を毎フレームやらず、
+   終わった時に1回だけ行う。画像が多いボードで操作直後に固まる主因だった（2026-11-25 最適化） */
+let uiLayoutBatch = 0;
+function withUiBatch(fn) {
+  uiLayoutBatch++;
+  try { fn(); } finally {
+    uiLayoutBatch--;
+    if (!uiLayoutBatch) { layoutFrameUi(); if (typeof layoutTextEditor === 'function') layoutTextEditor(); }
+  }
+}
 function positionFrameEl(p, el) {
   el.style.left = (p.x - p.w / 2) + 'px';
   el.style.top = (p.y - p.h / 2) + 'px';
@@ -770,8 +782,10 @@ function positionFrameEl(p, el) {
   const pItem = itemOf(p);
   el.classList.toggle('alpha', !!(pItem && pItem.alpha));
   if (pItem && pItem.kind === 'text') fitText(p, el);
-  layoutFrameUi();
-  if (typeof layoutTextEditor === 'function') layoutTextEditor();   /* 編集中はエディタを枠に追随させる */
+  if (!uiLayoutBatch) {
+    layoutFrameUi();
+    if (typeof layoutTextEditor === 'function') layoutTextEditor();   /* 編集中はエディタを枠に追随させる */
+  }
 }
 function buildFrameEl(p) {
   const el = document.createElement('div');
@@ -1020,6 +1034,7 @@ function onGroupResizeMove(e) {
   /* 単一画像の拡縮と同じく、掴んだ角の対角を固定して引っ張る */
   const newW = Math.max(40, ((now.x - groupDrag.grabDX) - groupDrag.anchorX) * groupDrag.sx);
   const f = newW / groupDrag.bboxW;
+  withUiBatch(() => {
   for (const [pid, o] of groupDrag.orig) {
     const p = placementByPid(pid);
     if (!p) continue;
@@ -1030,6 +1045,7 @@ function onGroupResizeMove(e) {
     const el = frameEls.get(pid);
     if (el) positionFrameEl(p, el);
   }
+  });
   layoutMultiUi();
 }
 async function settleMultiDrag() {
@@ -1052,6 +1068,7 @@ function onGroupMove(e) {
   if (!groupMove || e.pointerId !== groupMove.pointerId) return;
   const now = screenToWorld(e.clientX, e.clientY);
   const dx = now.x - groupMove.startX, dy = now.y - groupMove.startY;
+  withUiBatch(() => {
   for (const [pid, o] of groupMove.orig) {
     const p = placementByPid(pid);
     if (!p) continue;
@@ -1060,6 +1077,7 @@ function onGroupMove(e) {
     const el = frameEls.get(pid);
     if (el) positionFrameEl(p, el);
   }
+  });
   layoutMultiUi();
 }
 async function onGroupMoveEnd(e) {
@@ -1175,6 +1193,7 @@ function onGroupRotateMove(e) {
   const cur = Math.atan2(e.clientY - groupRotate.ccy, e.clientX - groupRotate.ccx);
   const d = (cur - groupRotate.startPtr) * 180 / Math.PI;
   const th = d * Math.PI / 180, cos = Math.cos(th), sin = Math.sin(th);
+  withUiBatch(() => {
   for (const [pid, o] of groupRotate.orig) {
     const p = placementByPid(pid);
     if (!p) continue;
@@ -1185,6 +1204,7 @@ function onGroupRotateMove(e) {
     const el = frameEls.get(pid);
     if (el) positionFrameEl(p, el);
   }
+  });
   layoutMultiUi();
 }
 async function onGroupRotateEnd(e) {
@@ -2052,6 +2072,7 @@ async function restoreState(json) {
   boardCameras[activeBoardId] = camera;
   /* 変わった配置だけ描き直す（全部作り直すと画像が多い時に固まるため） */
   const alive = new Set();
+  withUiBatch(() => {
   for (const p of placements) {
     alive.add(p.pid);
     let el = frameEls.get(p.pid);
@@ -2067,6 +2088,7 @@ async function restoreState(json) {
       refreshFrameImage(p, el);
     }
   }
+  });
   for (const [pid] of [...frameEls]) if (!alive.has(pid)) removeFrameEl(pid);
   hintEl.style.display = placements.length ? 'none' : 'block';
   if (boardChanged) { applyCamera(); renderTabs(); }
