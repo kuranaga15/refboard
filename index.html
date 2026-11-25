@@ -181,10 +181,10 @@
   .resize-handle::after, .group-handle::after, .crop-handle::after {
     content: ''; position: absolute; inset: -45%; border-radius: 50%;
   }
-  /* 回転ゾーン: 四隅のハンドルから45°外側にある透明なタップ範囲（kura指定で当初8px×4px→2倍に拡大し16px×8px）。
+  /* 回転ゾーン: 四隅のハンドルから45°外側にある透明なタップ範囲（kura指定で当初8px×4px→長さ2倍・幅3倍に拡大し16px×24px）。
      見た目のハンドルは無く、ドラッグすると画像の中心を基点に回転する */
   .rotate-zone {
-    position: absolute; width: 16px; height: 8px; box-sizing: border-box;
+    position: absolute; width: 16px; height: 24px; box-sizing: border-box;
     background: transparent; cursor: grab; touch-action: none;
     pointer-events: auto; display: none;
   }
@@ -852,16 +852,16 @@ function layoutFrameUi() {
       h.style.left = (pt.x - 7) + 'px';
       h.style.top = (pt.y - 7) + 'px';
     }
-    /* 回転ゾーンは各角から45°外側へ16pxの位置に、対角の向きで置く
-       （拡縮ハンドルと誤タップしないよう、当初の位置から5px外側へずらした。kura指定） */
+    /* 回転ゾーンは各角から45°外側へ19pxの位置に、対角の向きで置く
+       （拡縮ハンドルと誤タップしないよう、当初の位置から5px+3px外側へずらした。kura指定） */
     for (const zn of rotateZones) {
       const c = zn.dataset.corner;
       const pt = cornerPts[c];
       const sx = c.includes('e') ? 1 : -1, sy = c.includes('s') ? 1 : -1;
       const dlx = sx * Math.SQRT1_2, dly = sy * Math.SQRT1_2;
       const dx = dlx * cosT - dly * sinT, dy = dlx * sinT + dly * cosT;
-      zn.style.left = (pt.x + dx * 16) + 'px';
-      zn.style.top = (pt.y + dy * 16) + 'px';
+      zn.style.left = (pt.x + dx * 19) + 'px';
+      zn.style.top = (pt.y + dy * 19) + 'px';
       zn.style.transform = 'translate(-50%, -50%) rotate(' + (Math.atan2(dy, dx) * 180 / Math.PI) + 'deg)';
     }
   }
