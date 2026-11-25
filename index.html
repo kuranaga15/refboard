@@ -2598,6 +2598,14 @@ if (window.visualViewport) {
   visualViewport.addEventListener('scroll', pinTabs);
 }
 window.addEventListener('orientationchange', () => setTimeout(() => { pinBar(); pinTabs(); }, 60));
+window.addEventListener('resize', () => { pinBar(); pinTabs(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { pinBar(); pinTabs(); } });
+/* iPad Safariではキーボードを閉じても表示領域の変更イベントが来ないことがあり、
+   バーがキーボード表示中の位置（画面の途中）に残る。閉じた直後に少し遅らせて取り直す（kura報告 2026-11-25） */
+function repinSoon() {
+  setTimeout(() => { pinBar(); pinTabs(); }, 60);
+  setTimeout(() => { pinBar(); pinTabs(); }, 400);
+}
 window.addEventListener('load', () => { pinBar(); pinTabs(); setTimeout(() => { pinBar(); pinTabs(); }, 300); });
 pinBar();
 pinTabs();
@@ -2900,6 +2908,7 @@ function closeTextEditor() {
   document.body.classList.remove('text-editing');
   document.querySelectorAll('.frame.editing').forEach(el => el.classList.remove('editing'));
   layoutFrameUi();
+  repinSoon();   /* キーボードが閉じた後の表示領域でバーの位置を取り直す */
 }
 function applyTextEdit() {
   if (!textEdit) return;
@@ -2938,6 +2947,7 @@ function applyTextEdit() {
 }
 document.getElementById('textOk').addEventListener('click', applyTextEdit);
 document.getElementById('textCancel').addEventListener('click', closeTextEditor);
+textInputEl.addEventListener('blur', () => repinSoon());   /* キーボードだけ閉じた時もバーを取り直す */
 /* 入力エリア四隅のハンドル: 入力中のその場で箱の大きさを変える。
    既存テキストは通常の拡縮と同じ計算（対角固定・ローカル座標）で配置を拡縮し、
    新規テキストはまだ配置が無いので、入力エリアの箱自体を拡縮して大きさを保持する */
