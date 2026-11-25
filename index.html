@@ -2,15 +2,11 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
 <title>refboard</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; }
-  /* iPadのドック型キーボードで入力欄にフォーカスすると、ブラウザがページ全体を
-     スクロールして描画とタップ位置がズレる（閉じても戻らない。kura報告 2026-11-26）。
-     html/body自体を固定し、ページがスクロールで動く余地を無くす */
-  html, body { position: fixed; inset: 0; width: 100%; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
     background: var(--canvas-bg); color: #eee;
