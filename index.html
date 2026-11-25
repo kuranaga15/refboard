@@ -159,27 +159,29 @@
   /* 透過画像は四角い箱にしない（シャドウも付けない） */
   .frame.alpha { background: transparent; border-radius: 0; }
   .frame.alpha img { border-radius: 0; }
-  /* テキスト配置: 箱いっぱいに文字を表示し、大きさは箱に合わせて自動調整する */
-  .frame.text { background: transparent; border-radius: 0; }
+  /* テキスト配置: 箱いっぱいに文字を表示し、大きさは箱に合わせて自動調整する。
+     デフォルトで半透明の黒背景＋白文字にし、キャンバスの明暗どちらでも読めるようにする（kura指定） */
+  .frame.text { background: rgba(0,0,0,.45); border-radius: 4px; }
   .text-body {
     position: absolute; inset: 0; padding: 4px 6px; box-sizing: border-box;
     white-space: pre-wrap; word-break: break-word; overflow: hidden;
-    line-height: 1.35; color: #f2f2f5; font-family: inherit;
+    line-height: 1.35; color: #fff; font-family: inherit;
   }
-  html.canvas-light .text-body { color: #2b2b30; }
   /* テキスト選択中はトリミング系のボタンを出さない */
   #selToolbar.textsel .act-crop, #selToolbar.textsel .act-free { display: none; }
   #textBtn { font-size: 16px; font-weight: 300; }
-  /* その場編集エディタ（タップした場所・テキストの枠に重ねて出す） */
-  #textEditor { position: absolute; display: none; pointer-events: auto; z-index: 90; }
+  /* その場編集エディタ（タップした場所・テキストの枠に重ねて出す）。
+     コンテナ自体はタップを透過させ、枠の四隅のハンドルを入力中も掴めるようにする */
+  #textEditor { position: absolute; display: none; pointer-events: none; z-index: 90; }
   #textEditor.on { display: block; }
-  /* 入力欄は吹き出し状に塗らず、点線の四角だけで囲ってキャンバスが見えるようにする（kura指定） */
+  #textInput, #textEditorBtns { pointer-events: auto; }
+  /* 入力欄は点線の四角で囲い、中はテキスト本体と同じ半透明の黒（白文字が読めるように） */
   #textInput {
     width: 100%; box-sizing: border-box; font-size: 16px; font-family: inherit; line-height: 1.4;
     padding: 8px 10px; border-radius: 10px; border: 1.5px dashed #6f8dff; outline: none; resize: none;
-    background: transparent; color: #f2f2f5;
+    background: rgba(0,0,0,.45); color: #fff;
   }
-  html.canvas-light #textInput { background: transparent; color: #2b2b30; border-color: #656565; }
+  html.canvas-light #textInput { background: rgba(0,0,0,.45); color: #fff; border-color: #656565; }
   #textEditorBtns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
   /* 画像下のUI（ツールバー・拡縮ハンドル・トリミングの✓/✕）は、フレームの中ではなく
      画面固定レイヤー（#frameUi）に一組だけ置く。ズームに依らず常に同じ大きさになり、
@@ -188,7 +190,7 @@
   /* 消す時は display:none まで落とす（透明化だけだとiOSで切れ端が残ることがあるため） */
   #selToolbar, #cropControls {
     position: absolute; display: none; gap: 6px; pointer-events: auto;
-    transform: translateX(-50%);
+    transform: translateX(-50%); z-index: 96;
   }
   #selToolbar.on, #cropControls.on { display: flex; }
   /* トリミングの✓/✕は右手操作前提で、画像の右端に吸着させる */
@@ -196,7 +198,7 @@
   .resize-handle {
     position: absolute; width: 14px; height: 14px; border-radius: 50%;
     background: #6f8dff; border: 2px solid #fff; cursor: nwse-resize; touch-action: none;
-    pointer-events: auto; display: none;
+    pointer-events: auto; display: none; z-index: 95;
   }
   .resize-handle.on { display: block; }
   /* ハンドルのタップ範囲だけを大きく広げる（見た目は変えない。kura指定で直径+90%） */
@@ -208,7 +210,7 @@
   .rotate-zone {
     position: absolute; width: 16px; height: 24px; box-sizing: border-box;
     background: transparent; cursor: grab; touch-action: none;
-    pointer-events: auto; display: none;
+    pointer-events: auto; display: none; z-index: 95;
   }
   .rotate-zone.on { display: block; }
   /* トリミング（スケッチブックと同じ操作感：マスク＋四隅ハンドル＋✓/✕） */
