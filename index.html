@@ -737,6 +737,15 @@ function renderAll() {
 function fitText(p, el) {
   const body = el.querySelector('.text-body');
   if (!body) return;
+  const fitItem = itemOf(p);
+  if (fitItem && fitItem.fontSize) {
+    /* 文字サイズはテキストごとに固定。箱の大きさで変わるのは改行位置だけ（kura指定） */
+    if (el.dataset.fitKey !== 'fs' + fitItem.fontSize) {
+      el.dataset.fitKey = 'fs' + fitItem.fontSize;
+      body.style.fontSize = fitItem.fontSize + 'px';
+    }
+    return;
+  }
   const key = p.w + '|' + p.h + '|' + body.textContent;
   if (el.dataset.fitKey === key) return;
   el.dataset.fitKey = key;
@@ -2806,18 +2815,20 @@ function layoutTextEditor() {
   const r = viewport.getBoundingClientRect();
   const th = (p.angle || 0) * Math.PI / 180, cosT = Math.cos(th), sinT = Math.sin(th);
   const hw = p.w * camera.scale / 2, hh = p.h * camera.scale / 2;
-  let minX = Infinity, minY = Infinity, maxX = -Infinity;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const [lx, ly] of [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]]) {
     const sx2 = (p.x - camera.cx) * camera.scale + r.width / 2 + lx * cosT - ly * sinT;
     const sy2 = (p.y - camera.cy) * camera.scale + r.height / 2 + lx * sinT + ly * cosT;
-    minX = Math.min(minX, sx2); minY = Math.min(minY, sy2); maxX = Math.max(maxX, sx2);
+    minX = Math.min(minX, sx2); minY = Math.min(minY, sy2); maxX = Math.max(maxX, sx2); maxY = Math.max(maxY, sy2);
   }
-  let width = Math.max(180, maxX - minX);
-  width = Math.min(width, r.width - 16);
+  let width = Math.min(maxX - minX, r.width - 16);   /* 幅も確定済みボックスと一致させる（最小幅で膨らませない） */
   textEditorEl.style.left = Math.max(8, Math.min(minX, r.width - width - 8)) + 'px';
   textEditorEl.style.top = Math.max(44, Math.min(minY, r.height - 170)) + 'px';
   textEditorEl.style.width = width + 'px';
-  syncEditorFont();   /* 拡縮・回転のドラッグ中も、文字サイズを枠に追随させる */
+  /* 入力エリアの高さは確定済みボックスと一致させる（入力モードで箱の大きさを変えない。kura指定）。
+     文字サイズは固定のまま、拡縮で変わるのは改行位置だけ */
+  textInputEl.style.height = (maxY - minY) + 'px';
+  if (textEdit.fontWorld) textInputEl.style.fontSize = (textEdit.fontWorld * camera.scale) + 'px';
 }
 function openTextEditor(pid, wx, wy) {
   const r = viewport.getBoundingClientRect();
@@ -2828,7 +2839,14 @@ function openTextEditor(pid, wx, wy) {
     const it = itemOf(p);
     textInputEl.value = it ? (it.text || '') : '';
     textInputEl.style.height = '';
-    textEdit = { pid };
+    if (it && !it.fontSize) {
+      /* 旧テキストは今の見た目のサイズを測って固定する（見た目は変えない） */
+      it.fontSize = fittedFontWorld(p.w, p.h, it.text || '');
+      metaDirty = true;
+      saveLocal();
+      scheduleSync();
+    }
+    textEdit = { pid, fontWorld: it ? (it.fontSize || 16) : 16 };
     const fel = frameEls.get(pid);
     if (fel) fel.classList.add('editing');
     layoutTextEditor();
@@ -2841,7 +2859,7 @@ function openTextEditor(pid, wx, wy) {
     const top = (wy - camera.cy) * camera.scale + r.height / 2 - (64 * camera.scale) / 2;
     textInputEl.value = '';
     textInputEl.style.height = (64 * camera.scale) + 'px';
-    textEdit = { wx, wy, w: w0, h: 64 };   /* 新規はまだ配置が無いので、箱の大きさをここで保持する */
+    textEdit = { wx, wy, w: w0, h: 64, fontWorld: 16 / camera.scale };   /* 新規はまだ配置が無いので、箱の大きさと文字サイズをここで保持する */
     textEditorEl.style.left = Math.max(8, Math.min(left, r.width - width - 8)) + 'px';
     textEditorEl.style.top = Math.max(44, Math.min(top, r.height - 170)) + 'px';
     textEditorEl.style.width = width + 'px';
@@ -2849,8 +2867,8 @@ function openTextEditor(pid, wx, wy) {
   textEditorEl.classList.toggle('is-new', !pid);
   textEditorEl.classList.add('on');
   document.body.classList.add('text-editing');
-  editorFontKey = '';
-  syncEditorFont();   /* 入力中の文字サイズを、確定後のサイズと一致させる */
+  textInputEl.style.fontSize = ((textEdit.fontWorld || 16) * camera.scale) + 'px';
+  textInputEl.style.lineHeight = '1.35';
   layoutFrameUi();   /* 枠側のUIを消して、入力エリア側だけにする */
   setTimeout(() => { textInputEl.focus(); }, 30);
 }
@@ -2885,7 +2903,7 @@ function applyTextEdit() {
     if (!val.trim()) return;
     pushHistory();
     const bw = ed.w || 240, bh = ed.h || 64;
-    const it = { id: 't-' + makeId(), kind: 'text', text: val, w: bw, h: bh };
+    const it = { id: 't-' + makeId(), kind: 'text', text: val, w: bw, h: bh, fontSize: ed.fontWorld || 16 };
     items.set(it.id, it);
     const np = { pid: 'p-' + makeId(), itemId: it.id, x: ed.wx, y: ed.wy, w: bw, h: bh, angle: 0, z: ++zCounter, u: Date.now() };
     placements.push(np);
@@ -2924,7 +2942,6 @@ document.querySelectorAll('.edit-handle').forEach(h => {
         textEditorEl.style.left = Math.max(8, Math.min(cxS - wpx / 2, r2.width - wpx - 8)) + 'px';
         textEditorEl.style.top = Math.max(44, Math.min(cyS - hpx / 2, r2.height - 170)) + 'px';
         textInputEl.style.height = hpx + 'px';
-        syncEditorFont();
       };
       const up = () => { h.removeEventListener('pointermove', mv); };
       h.setPointerCapture(e.pointerId);
@@ -2973,38 +2990,25 @@ function textContentBottom() {
   textMirror.textContent = textInputEl.value + '\n';
   return 1.5 + textMirror.offsetHeight;   /* 1.5 = 入力欄のボーダー幅 */
 }
-/* 入力中の文字サイズを、確定後に枠側で自動調整されるサイズと一致させる（kura指定）。
-   枠側の fitText と同じ物差し（.text-body と同じ書式の鏡要素で二分探索）で測り、
-   画面上の大きさに直して入力欄へ反映する。打っている最中も追随させる */
+/* テキストの文字サイズは、テキストごとに固定値（fontSize、ワールド単位）で持つ。
+   将来のサイズ変更ボタンは、この値を変える想定。fontSize を持たない旧テキストは、
+   初回編集時に今の見た目のサイズを測って固定する（測り方は枠側の自動調整と同じ） */
 const fitMirror = document.createElement('div');
 fitMirror.style.cssText = 'position:absolute; left:-9999px; top:0; visibility:hidden; box-sizing:border-box; padding:4px 6px; line-height:1.35; white-space:pre-wrap; word-break:break-word; overflow:hidden; pointer-events:none;';
 document.body.appendChild(fitMirror);
-let editorFontKey = '';
-function syncEditorFont() {
-  if (!textEdit) return;
-  let wW, hW;
-  if (textEdit.pid) {
-    const p = placementByPid(textEdit.pid);
-    if (!p) return;
-    wW = p.w; hW = p.h;
-  } else { wW = textEdit.w || 240; hW = textEdit.h || 64; }
-  const key = wW + '|' + hW + '|' + camera.scale + '|' + textInputEl.value;
-  if (key === editorFontKey) return;
-  editorFontKey = key;
+function fittedFontWorld(wW, hW, text) {
   fitMirror.style.width = wW + 'px';
   fitMirror.style.height = hW + 'px';
   fitMirror.style.fontFamily = getComputedStyle(textInputEl).fontFamily;
-  fitMirror.textContent = textInputEl.value || ' ';
+  fitMirror.textContent = text || ' ';
   let lo = 6, hi = Math.max(9, hW);
   for (let i = 0; i < 12; i++) {
     const mid = (lo + hi) / 2;
     fitMirror.style.fontSize = mid + 'px';
     if (fitMirror.scrollHeight <= hW + 1 && fitMirror.scrollWidth <= wW + 1) lo = mid; else hi = mid;
   }
-  textInputEl.style.fontSize = Math.max(9, lo * camera.scale) + 'px';
-  textInputEl.style.lineHeight = '1.35';
+  return lo;
 }
-textInputEl.addEventListener('input', syncEditorFont);
 function startEditorMove(e, srcEl) {
   if (textEdit.pid) {
     const p = placementByPid(textEdit.pid);
