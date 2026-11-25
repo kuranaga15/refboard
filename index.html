@@ -2759,13 +2759,15 @@ function openTextEditor(pid, wx, wy) {
     textEdit = { pid };
     layoutTextEditor();
   } else {
-    let width = Math.max(180, 240 * camera.scale);
-    width = Math.min(width, r.width - 16);
+    /* 幅は「ワールド幅 × scale」で一貫させる。px側の最小幅(180)を別に効かせると、
+       ハンドルを最初に動かした瞬間に箱が縮んでしまう（2026-11-25 kura報告） */
+    const w0 = Math.max(240, Math.ceil(180 / camera.scale));
+    let width = Math.min(w0 * camera.scale, r.width - 16);
     const left = (wx - camera.cx) * camera.scale + r.width / 2 - width / 2;
     const top = (wy - camera.cy) * camera.scale + r.height / 2 - (64 * camera.scale) / 2;
     textInputEl.value = '';
     textInputEl.style.height = (64 * camera.scale) + 'px';
-    textEdit = { wx, wy, w: 240, h: 64 };   /* 新規はまだ配置が無いので、箱の大きさをここで保持する */
+    textEdit = { wx, wy, w: w0, h: 64 };   /* 新規はまだ配置が無いので、箱の大きさをここで保持する */
     textEditorEl.style.left = Math.max(8, Math.min(left, r.width - width - 8)) + 'px';
     textEditorEl.style.top = Math.max(44, Math.min(top, r.height - 170)) + 'px';
     textEditorEl.style.width = width + 'px';
