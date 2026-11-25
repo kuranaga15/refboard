@@ -102,16 +102,16 @@
   #tabbar {
     position: fixed; left: 0; top: 0; width: 100%; z-index: 80;
     display: flex; gap: 6px; padding: env(safe-area-inset-top) 10px 0;
-    background: rgba(24,24,28,.92); transform-origin: 0 0; box-sizing: border-box;
+    background: var(--canvas-bg); transform-origin: 0 0; box-sizing: border-box;
   }
   .btab {
     flex: 1 1 0; min-width: 0; padding: 2px 6px; border-radius: 12px 12px 0 0; box-sizing: border-box;
-    background: transparent; border: none; color: #a5a5ad;
+    background: transparent; border: 1px solid #878787; color: #a5a5ad;
     font-size: 12px; font-family: inherit; text-align: center;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
   }
   /* タブは上が角丸・下が四角のプリン状。アクティブタブはタブバーの下端まで届いて見出しのように見える（kura指定） */
-  .btab.on { background: #6f6f76; color: #fff; font-weight: 600; }
+  .btab.on { background: #6f6f76; color: #fff; border: 1px solid transparent; }
   /* 範囲選択ボタンと複数選択まわり */
   #rangeBtn svg { width: 19px; height: 19px; display: block; pointer-events: none; }
   .bbtn.on { background: #54545e; border-color: #e8e8ec; }
@@ -181,6 +181,15 @@
   .resize-handle::after, .group-handle::after, .crop-handle::after {
     content: ''; position: absolute; inset: -45%; border-radius: 50%;
   }
+  /* 回転ゾーン: 四隅のハンドルから45°外側に突き出す小さな棒（長さ8px・幅4px、kura指定）。
+     ドラッグすると画像の中心を基点に回転する。タップ範囲だけ当たり判定を広げる */
+  .rotate-zone {
+    position: absolute; width: 8px; height: 4px; border-radius: 2px; box-sizing: border-box;
+    background: #6f8dff; border: 1px solid #fff; cursor: grab; touch-action: none;
+    pointer-events: auto; display: none;
+  }
+  .rotate-zone.on { display: block; }
+  .rotate-zone::after { content: ''; position: absolute; inset: -8px -6px; }
   /* トリミング（スケッチブックと同じ操作感：マスク＋四隅ハンドル＋✓/✕） */
   .frame.cropping { outline: 2px solid #3fbf72; outline-offset: 1px; }
   /* フリーフォーム切り取り（なぞった軌跡をその場で見せる） */
@@ -293,6 +302,10 @@
     <div class="resize-handle" id="resizeHandleNE" data-corner="ne"></div>
     <div class="resize-handle" id="resizeHandleSW" data-corner="sw"></div>
     <div class="resize-handle" id="resizeHandle" data-corner="se"></div>
+    <div class="rotate-zone" data-corner="nw"></div>
+    <div class="rotate-zone" data-corner="ne"></div>
+    <div class="rotate-zone" data-corner="sw"></div>
+    <div class="rotate-zone" data-corner="se"></div>
     <div id="cropControls">
       <div class="tbtn del act-crop-cancel" title="キャンセル"><span class="xgl">✕</span></div>
       <div class="tbtn apply act-crop-apply" title="適用">✓</div>
@@ -762,6 +775,7 @@ const selToolbar = document.getElementById('selToolbar');
 const cropControlsEl = document.getElementById('cropControls');
 const resizeHandle = document.getElementById('resizeHandle');
 const resizeHandles = [...document.querySelectorAll('.resize-handle')];
+const rotateZones = [...document.querySelectorAll('.rotate-zone')];
 let uiMode = 'none';
 /* iOSでUIの残像が残らないよう、消える側のUIは「変形を外して描画を確定させる」
    フラッシュを挟んでから消す（要素を消す時に効いたのと同じ手当て） */
@@ -790,7 +804,7 @@ function layoutFrameUi() {
   else { const sp = singleUiPid(); if (sp) { target = placementByPid(sp); mode = 'sel'; } }
   if (!target) mode = 'none';
   if (mode !== uiMode) {
-    if (uiMode === 'sel') { flushHidden(selToolbar); resizeHandles.forEach(h => flushHidden(h)); }
+    if (uiMode === 'sel') { flushHidden(selToolbar); resizeHandles.forEach(h => flushHidden(h)); rotateZones.forEach(z => flushHidden(z)); }
     if (uiMode === 'crop') { flushHidden(cropControlsEl); }
     uiMode = mode;
   }
@@ -798,37 +812,57 @@ function layoutFrameUi() {
     selToolbar.classList.remove('on');
     cropControlsEl.classList.remove('on');
     resizeHandles.forEach(h => h.classList.remove('on'));
+    rotateZones.forEach(z => z.classList.remove('on'));
     layoutMultiUi();
     return;
   }
   const r = viewport.getBoundingClientRect();
   const cxS = (target.x - camera.cx) * camera.scale + r.width / 2;
   const cyS = (target.y - camera.cy) * camera.scale + r.height / 2;
-  const right = cxS + target.w * camera.scale / 2;
-  const bottom = cyS + target.h * camera.scale / 2;
+  /* 回転している画像では、四隅と外接矩形は回転後の位置で求める */
+  const th = (target.angle || 0) * Math.PI / 180, cosT = Math.cos(th), sinT = Math.sin(th);
+  const hwS = target.w * camera.scale / 2, hhS = target.h * camera.scale / 2;
+  const cornerPts = {};
+  for (const [key, lx, ly] of [['nw', -hwS, -hhS], ['ne', hwS, -hhS], ['sw', -hwS, hhS], ['se', hwS, hhS]]) {
+    cornerPts[key] = { x: cxS + lx * cosT - ly * sinT, y: cyS + lx * sinT + ly * cosT };
+  }
+  const right = Math.max(cornerPts.nw.x, cornerPts.ne.x, cornerPts.sw.x, cornerPts.se.x);
+  const bottom = Math.max(cornerPts.nw.y, cornerPts.ne.y, cornerPts.sw.y, cornerPts.se.y);
   if (mode === 'crop') {
     selToolbar.classList.remove('on');
     resizeHandles.forEach(h => h.classList.remove('on'));
+    rotateZones.forEach(z => z.classList.remove('on'));
     cropControlsEl.classList.add('on');
     cropControlsEl.style.left = right + 'px';
     cropControlsEl.style.top = (bottom + 8) + 'px';
   } else if (mode === 'free') {
     selToolbar.classList.remove('on');
     resizeHandles.forEach(h => h.classList.remove('on'));
+    rotateZones.forEach(z => z.classList.remove('on'));
     cropControlsEl.classList.remove('on');
   } else {
     cropControlsEl.classList.remove('on');
     selToolbar.classList.add('on');
     resizeHandles.forEach(h => h.classList.add('on'));
+    rotateZones.forEach(z => z.classList.add('on'));
     selToolbar.style.left = cxS + 'px';
     selToolbar.style.top = (bottom + 8) + 'px';
-    /* 拡縮ハンドルは四隅すべてに出す（kura指定） */
-    const left = cxS - target.w * camera.scale / 2;
-    const top = cyS - target.h * camera.scale / 2;
+    /* 拡縮ハンドルは四隅すべてに出す（kura指定）。回転時は回転後の角に置く */
     for (const h of resizeHandles) {
-      const c = h.dataset.corner;
-      h.style.left = ((c.includes('e') ? right : left) - 7) + 'px';
-      h.style.top = ((c.includes('s') ? bottom : top) - 7) + 'px';
+      const pt = cornerPts[h.dataset.corner];
+      h.style.left = (pt.x - 7) + 'px';
+      h.style.top = (pt.y - 7) + 'px';
+    }
+    /* 回転ゾーンは各角から45°外側へ11pxの位置に、対角の向きで置く */
+    for (const zn of rotateZones) {
+      const c = zn.dataset.corner;
+      const pt = cornerPts[c];
+      const sx = c.includes('e') ? 1 : -1, sy = c.includes('s') ? 1 : -1;
+      const dlx = sx * Math.SQRT1_2, dly = sy * Math.SQRT1_2;
+      const dx = dlx * cosT - dly * sinT, dy = dlx * sinT + dly * cosT;
+      zn.style.left = (pt.x + dx * 11) + 'px';
+      zn.style.top = (pt.y + dy * 11) + 'px';
+      zn.style.transform = 'translate(-50%, -50%) rotate(' + (Math.atan2(dy, dx) * 180 / Math.PI) + 'deg)';
     }
   }
   layoutMultiUi();
@@ -1012,15 +1046,46 @@ resizeHandles.forEach(h => {
     const sy = c.includes('s') ? 1 : -1;
     const startWorld = screenToWorld(e.clientX, e.clientY);
     beginDragHistory([p]);
+    /* 回転している画像でも対角の角が固定されるよう、拡縮は画像のローカル座標で計算する */
+    const th = (p.angle || 0) * Math.PI / 180, cos = Math.cos(th), sin = Math.sin(th);
+    const anchorLX = -sx * p.w / 2, anchorLY = -sy * p.h / 2;
+    const anchorWX = p.x + anchorLX * cos - anchorLY * sin;
+    const anchorWY = p.y + anchorLX * sin + anchorLY * cos;
+    const cornerWX = p.x + (sx * p.w / 2) * cos - (sy * p.h / 2) * sin;
+    const cornerWY = p.y + (sx * p.w / 2) * sin + (sy * p.h / 2) * cos;
+    const gdx = startWorld.x - cornerWX, gdy = startWorld.y - cornerWY;
     dragState = {
-      mode: 'resize', pid: p.pid, pointerId: e.pointerId, sx, sy,
-      anchorX: p.x - sx * p.w / 2, anchorY: p.y - sy * p.h / 2,
-      grabDX: startWorld.x - (p.x + sx * p.w / 2), grabDY: startWorld.y - (p.y + sy * p.h / 2)
+      mode: 'resize', pid: p.pid, pointerId: e.pointerId, sx, sy, cos, sin,
+      anchorWX, anchorWY,
+      grabLX: gdx * cos + gdy * sin, grabLY: -gdx * sin + gdy * cos
     };
     h.setPointerCapture(e.pointerId);
     h.addEventListener('pointermove', onDragMove);
     h.addEventListener('pointerup', onDragEnd, { once: true });
     h.addEventListener('pointercancel', onDragEnd, { once: true });
+  });
+});
+rotateZones.forEach(z => {
+  z.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const sp = singleUiPid();
+    if (!sp || cropState) return;
+    const p = placementByPid(sp);
+    if (!p) return;
+    const r = viewport.getBoundingClientRect();
+    const ccx = r.left + (p.x - camera.cx) * camera.scale + r.width / 2;
+    const ccy = r.top + (p.y - camera.cy) * camera.scale + r.height / 2;
+    beginDragHistory([p]);
+    dragState = {
+      mode: 'rotate', pid: p.pid, pointerId: e.pointerId, ccx, ccy,
+      startPtr: Math.atan2(e.clientY - ccy, e.clientX - ccx),
+      startAngle: p.angle || 0
+    };
+    z.setPointerCapture(e.pointerId);
+    z.addEventListener('pointermove', onDragMove);
+    z.addEventListener('pointerup', onDragEnd, { once: true });
+    z.addEventListener('pointercancel', onDragEnd, { once: true });
   });
 });
 selToolbar.querySelector('.act-dup').addEventListener('click', () => { const sp = singleUiPid(); if (sp) duplicatePlacement(sp); });
@@ -1039,16 +1104,24 @@ function onDragMove(e) {
     p.x = dragState.origX + (now.x - dragState.startX);
     p.y = dragState.origY + (now.y - dragState.startY);
     dragState.moved = true;
+  } else if (dragState.mode === 'rotate') {
+    /* 回転は画像の中心を基点に、指の角度の変化分だけ回す */
+    const cur = Math.atan2(e.clientY - dragState.ccy, e.clientX - dragState.ccx);
+    const d = (cur - dragState.startPtr) * 180 / Math.PI;
+    p.angle = ((dragState.startAngle + d + 180) % 360 + 360) % 360 - 180;
   } else {
-    /* 拡縮は中心ではなく、掴んだ角の対角を固定して行う（2026-11-24 kura指定） */
+    /* 拡縮は中心ではなく、掴んだ角の対角を固定して行う（2026-11-24 kura指定）。
+       回転している画像では、ポインタを画像のローカル座標へ直してから同じ計算をする */
     const item = itemOf(p);
     const ratio = item ? (item.h / item.w) : 1;
     const now = screenToWorld(e.clientX, e.clientY);
-    const cornerX = now.x - dragState.grabDX;
-    p.w = Math.max(40, (cornerX - dragState.anchorX) * dragState.sx);
+    const dx = now.x - dragState.anchorWX, dy = now.y - dragState.anchorWY;
+    const relX = dx * dragState.cos + dy * dragState.sin;
+    p.w = Math.max(40, (relX - dragState.grabLX) * dragState.sx);
     p.h = p.w * ratio;
-    p.x = dragState.anchorX + dragState.sx * p.w / 2;
-    p.y = dragState.anchorY + dragState.sy * p.h / 2;
+    const alx = -dragState.sx * p.w / 2, aly = -dragState.sy * p.h / 2;
+    p.x = dragState.anchorWX - (alx * dragState.cos - aly * dragState.sin);
+    p.y = dragState.anchorWY - (alx * dragState.sin + aly * dragState.cos);
   }
   if (el) positionFrameEl(p, el);
 }
@@ -1812,7 +1885,7 @@ async function redo() {
 }
 function beginDragHistory(list) {
   const before = new Map();
-  for (const p of list) before.set(p.pid, { x: p.x, y: p.y, w: p.w, h: p.h });
+  for (const p of list) before.set(p.pid, { x: p.x, y: p.y, w: p.w, h: p.h, angle: p.angle || 0 });
   dragHistory = { snap: serializeState(), before };
 }
 function commitDragHistory() {
@@ -1820,7 +1893,7 @@ function commitDragHistory() {
   let changed = false;
   for (const [pid, b] of dragHistory.before) {
     const p = placementByPid(pid);
-    if (p && (p.x !== b.x || p.y !== b.y || p.w !== b.w || p.h !== b.h)) { changed = true; break; }
+    if (p && (p.x !== b.x || p.y !== b.y || p.w !== b.w || p.h !== b.h || (p.angle || 0) !== b.angle)) { changed = true; break; }
   }
   if (changed) {
     undoStack.push(dragHistory.snap);
