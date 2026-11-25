@@ -852,15 +852,16 @@ function layoutFrameUi() {
       h.style.left = (pt.x - 7) + 'px';
       h.style.top = (pt.y - 7) + 'px';
     }
-    /* 回転ゾーンは各角から45°外側へ11pxの位置に、対角の向きで置く */
+    /* 回転ゾーンは各角から45°外側へ16pxの位置に、対角の向きで置く
+       （拡縮ハンドルと誤タップしないよう、当初の位置から5px外側へずらした。kura指定） */
     for (const zn of rotateZones) {
       const c = zn.dataset.corner;
       const pt = cornerPts[c];
       const sx = c.includes('e') ? 1 : -1, sy = c.includes('s') ? 1 : -1;
       const dlx = sx * Math.SQRT1_2, dly = sy * Math.SQRT1_2;
       const dx = dlx * cosT - dly * sinT, dy = dlx * sinT + dly * cosT;
-      zn.style.left = (pt.x + dx * 11) + 'px';
-      zn.style.top = (pt.y + dy * 11) + 'px';
+      zn.style.left = (pt.x + dx * 16) + 'px';
+      zn.style.top = (pt.y + dy * 16) + 'px';
       zn.style.transform = 'translate(-50%, -50%) rotate(' + (Math.atan2(dy, dx) * 180 / Math.PI) + 'deg)';
     }
   }
