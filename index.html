@@ -169,16 +169,17 @@
   html.canvas-light .text-body { color: #2b2b30; }
   /* テキスト選択中はトリミング系のボタンを出さない */
   #selToolbar.textsel .act-crop, #selToolbar.textsel .act-free { display: none; }
-  #textBtn { font-size: 16px; font-weight: 700; }
+  #textBtn { font-size: 16px; font-weight: 300; }
   /* その場編集エディタ（タップした場所・テキストの枠に重ねて出す） */
   #textEditor { position: absolute; display: none; pointer-events: auto; z-index: 90; }
   #textEditor.on { display: block; }
+  /* 入力欄は吹き出し状に塗らず、点線の四角だけで囲ってキャンバスが見えるようにする（kura指定） */
   #textInput {
     width: 100%; box-sizing: border-box; font-size: 16px; font-family: inherit; line-height: 1.4;
-    padding: 8px 10px; border-radius: 10px; border: 1.5px solid #6f8dff; outline: none; resize: none;
-    background: rgba(34,34,40,.97); color: #f2f2f5;
+    padding: 8px 10px; border-radius: 10px; border: 1.5px dashed #6f8dff; outline: none; resize: none;
+    background: transparent; color: #f2f2f5;
   }
-  html.canvas-light #textInput { background: rgba(255,255,255,.97); color: #2b2b30; border-color: #656565; }
+  html.canvas-light #textInput { background: transparent; color: #2b2b30; border-color: #656565; }
   #textEditorBtns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
   /* 画像下のUI（ツールバー・拡縮ハンドル・トリミングの✓/✕）は、フレームの中ではなく
      画面固定レイヤー（#frameUi）に一組だけ置く。ズームに依らず常に同じ大きさになり、
@@ -1209,10 +1210,15 @@ async function onDragEnd(e) {
     if (el) refreshFrameImage(p, el);
   }
   nudgeRepaint();
-  /* 選択中のテキストを軽くタップしただけなら、その場で編集を開く */
-  if (ds.mode === 'move' && ds.editTap && p && p.x === ds.origX && p.y === ds.origY &&
+  /* 選択中のテキストを軽くタップしただけなら、その場で編集を開く。
+     指のわずかなブレで座標が小数レベルに動くため、位置の完全一致ではなく
+     画面上の移動量（10px以内）でタップと判定する */
+  if (ds.mode === 'move' && ds.editTap && p &&
       (Date.now() - ds.editTap.t) <= 500 &&
       Math.hypot(e.clientX - ds.editTap.x, e.clientY - ds.editTap.y) <= 10) {
+    p.x = ds.origX; p.y = ds.origY;   /* ブレでずれた分は元に戻す */
+    const el2 = frameEls.get(p.pid);
+    if (el2) positionFrameEl(p, el2);
     openTextEditor(p.pid);
   }
 }
@@ -2689,7 +2695,6 @@ textBtn.addEventListener('click', () => {
   if (textMode) {
     if (rangeMode) { rangeMode = false; rangeBtn.classList.remove('on'); clearMultiSel(); }
     if (cropState) cancelCrop(cropState.pid);
-    toast('テキストモード: タップした場所に文字を置けるよ');
   }
 });
 function openTextEditor(pid, wx, wy) {
