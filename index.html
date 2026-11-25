@@ -175,6 +175,18 @@
   #textEditor { position: absolute; display: none; pointer-events: none; z-index: 90; }
   #textEditor.on { display: block; }
   #textInput, #textEditorBtns { pointer-events: auto; }
+  /* 入力エリア自体の四隅ハンドル: キーボード表示中でも、この囲いを基準に拡縮できるようにする */
+  .edit-handle {
+    position: absolute; width: 14px; height: 14px; border-radius: 50%;
+    background: #6f8dff; border: 2px solid #fff; z-index: 5;
+    pointer-events: auto; touch-action: none; display: none;
+  }
+  #textEditor.on:not(.is-new) .edit-handle { display: block; }
+  .edit-handle[data-corner="nw"] { left: -7px; top: -7px; cursor: nwse-resize; }
+  .edit-handle[data-corner="ne"] { right: -7px; top: -7px; cursor: nesw-resize; }
+  .edit-handle[data-corner="sw"] { left: -7px; bottom: -7px; cursor: nesw-resize; }
+  .edit-handle[data-corner="se"] { right: -7px; bottom: -7px; cursor: nwse-resize; }
+  .edit-handle::after { content: ''; position: absolute; inset: -45%; border-radius: 50%; }
   /* 入力欄は点線の四角で囲い、中はテキスト本体と同じ半透明の黒（白文字が読めるように） */
   #textInput {
     width: 100%; box-sizing: border-box; font-size: 16px; font-family: inherit; line-height: 1.4;
@@ -335,6 +347,10 @@
       <div class="tbtn apply act-crop-apply" title="適用">✓</div>
     </div>
     <div id="textEditor">
+      <div class="edit-handle" data-corner="nw"></div>
+      <div class="edit-handle" data-corner="ne"></div>
+      <div class="edit-handle" data-corner="sw"></div>
+      <div class="edit-handle" data-corner="se"></div>
       <textarea id="textInput" rows="3" placeholder="テキスト"></textarea>
       <div id="textEditorBtns">
         <div class="tbtn del" id="textCancel"><span class="xgl">✕</span></div>
@@ -2748,6 +2764,7 @@ function openTextEditor(pid, wx, wy) {
     textEditorEl.style.top = Math.max(44, Math.min(top, r.height - 170)) + 'px';
     textEditorEl.style.width = width + 'px';
   }
+  textEditorEl.classList.toggle('is-new', !pid);   /* 新規作成中は拡縮ハンドルを出さない（まだ配置が無いため） */
   textEditorEl.classList.add('on');
   setTimeout(() => { textInputEl.focus(); }, 30);
 }
@@ -2791,6 +2808,38 @@ function applyTextEdit() {
 }
 document.getElementById('textOk').addEventListener('click', applyTextEdit);
 document.getElementById('textCancel').addEventListener('click', closeTextEditor);
+/* 入力エリア四隅のハンドル: 編集中のテキスト配置を、その場で拡縮する。
+   通常の拡縮ハンドルと同じ計算（対角固定・ローカル座標）で dragState を組み立てる */
+document.querySelectorAll('.edit-handle').forEach(h => {
+  h.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!textEdit || !textEdit.pid) return;
+    const p = placementByPid(textEdit.pid);
+    if (!p) return;
+    const c = h.dataset.corner;
+    const sx = c.includes('e') ? 1 : -1;
+    const sy = c.includes('s') ? 1 : -1;
+    const startWorld = screenToWorld(e.clientX, e.clientY);
+    beginDragHistory([p]);
+    const th = (p.angle || 0) * Math.PI / 180, cos = Math.cos(th), sin = Math.sin(th);
+    const anchorLX = -sx * p.w / 2, anchorLY = -sy * p.h / 2;
+    const anchorWX = p.x + anchorLX * cos - anchorLY * sin;
+    const anchorWY = p.y + anchorLX * sin + anchorLY * cos;
+    const cornerWX = p.x + (sx * p.w / 2) * cos - (sy * p.h / 2) * sin;
+    const cornerWY = p.y + (sx * p.w / 2) * sin + (sy * p.h / 2) * cos;
+    const gdx = startWorld.x - cornerWX, gdy = startWorld.y - cornerWY;
+    dragState = {
+      mode: 'resize', pid: p.pid, pointerId: e.pointerId, sx, sy, cos, sin,
+      anchorWX, anchorWY,
+      grabLX: gdx * cos + gdy * sin, grabLY: -gdx * sin + gdy * cos
+    };
+    h.setPointerCapture(e.pointerId);
+    h.addEventListener('pointermove', onDragMove);
+    h.addEventListener('pointerup', onDragEnd, { once: true });
+    h.addEventListener('pointercancel', onDragEnd, { once: true });
+  });
+});
 /* 編集エリアの外をタップしたら適用して閉じる（トリミングの外側タップと同じ考え方）。
    ただし画面固定UI（拡縮・回転ハンドルやツールバー）の上は閉じない:
    入力モードのままサイズ変更などをできるようにするため */
