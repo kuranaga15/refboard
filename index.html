@@ -2602,6 +2602,19 @@ function repinSoon() {
   setTimeout(() => { pinBar(); pinTabs(); }, 60);
   setTimeout(() => { pinBar(); pinTabs(); }, 400);
 }
+/* 大型（ドック型）キーボードでは、iPadが入力欄を見せるために画面そのものを
+   スクロールし、閉じてもそのスクロールが残ってページ全体が上にズレることがある
+   （下に白い帯が出て、上のタブが画面外に出る。kura報告 2026-11-26）。
+   このアプリに画面スクロールは存在しないので、入力中でない時にスクロールが
+   残っていたらゼロに戻す */
+setInterval(() => {
+  if (document.hidden) return;
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT')) return;
+  if (typeof textEdit !== 'undefined' && textEdit) return;
+  const vv = window.visualViewport;
+  if ((vv && vv.offsetTop > 0) || window.scrollY > 0) window.scrollTo(0, 0);
+}, 700);
 window.addEventListener('load', () => { pinBar(); pinTabs(); setTimeout(() => { pinBar(); pinTabs(); }, 300); });
 pinBar();
 pinTabs();
@@ -2905,6 +2918,7 @@ function closeTextEditor() {
   document.querySelectorAll('.frame.editing').forEach(el => el.classList.remove('editing'));
   layoutFrameUi();
   repinSoon();
+  setTimeout(() => window.scrollTo(0, 0), 350);   /* キーボードを閉じた後に残った画面スクロールを戻す */
 }
 function applyTextEdit() {
   if (!textEdit) return;
