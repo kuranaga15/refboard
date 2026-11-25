@@ -2618,11 +2618,19 @@ function barsAligned() {
   return Math.abs(br.bottom - vv.height) <= 2 && Math.abs(tr.top) <= 2;
 }
 function hardRepin() {
-  barEl.style.transform = 'none';
-  tabEl.style.transform = 'none';
+  /* iPadのフローティングキーボードを閉じた直後のバーのズレは、レイアウト値
+     （getBoundingClientRect）には現れない描画側のズレで、位置の取り直しでは直らない。
+     最小化やスリープで直るのは画面全体が再合成されるため。同じことをここで起こす:
+     バーを一度消して描き直し、ページの再描画も促す（kura報告 2026-11-26） */
+  window.scrollTo(0, 0);
+  barEl.style.display = 'none';
+  tabEl.style.display = 'none';
   void barEl.offsetHeight;
+  barEl.style.display = '';
+  tabEl.style.display = '';
   pinBar();
   pinTabs();
+  if (typeof nudgeRepaint === 'function') nudgeRepaint();
 }
 setInterval(() => {
   if (document.hidden || barsAligned()) { barStuck = 0; return; }
@@ -2933,6 +2941,7 @@ function closeTextEditor() {
   document.querySelectorAll('.frame.editing').forEach(el => el.classList.remove('editing'));
   layoutFrameUi();
   repinSoon();   /* キーボードが閉じた後の表示領域でバーの位置を取り直す */
+  setTimeout(hardRepin, 420);   /* キーボードが閉じ切った頃に描き直して、描画側のズレを消す */
 }
 function applyTextEdit() {
   if (!textEdit) return;
@@ -2971,7 +2980,7 @@ function applyTextEdit() {
 }
 document.getElementById('textOk').addEventListener('click', applyTextEdit);
 document.getElementById('textCancel').addEventListener('click', closeTextEditor);
-textInputEl.addEventListener('blur', () => repinSoon());   /* キーボードだけ閉じた時もバーを取り直す */
+textInputEl.addEventListener('blur', () => { repinSoon(); setTimeout(hardRepin, 450); });   /* キーボードだけ閉じた時もバーを取り直し、描き直す */
 /* 入力エリア四隅のハンドル: 入力中のその場で箱の大きさを変える。
    既存テキストは通常の拡縮と同じ計算（対角固定・ローカル座標）で配置を拡縮し、
    新規テキストはまだ配置が無いので、入力エリアの箱自体を拡縮して大きさを保持する */
