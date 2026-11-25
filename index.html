@@ -2571,25 +2571,21 @@ document.getElementById('syncBtn').addEventListener('click', () => syncNow(true)
    下端を下端に合わせ、ズーム分は打ち消す。innerHeight等の食い違いやすい値は使わない。
    左端の+ボタンは表示領域の左辺に、右側のボタン群は右辺に吸着する */
 const barEl = document.getElementById('bottombar');
+/* バーの位置はCSSの position:fixed（下部バーは bottom:0、タブは top:0）に任せ、
+   JSでは位置を触らない。表示領域（visualViewport）に追随させる方式は、iPadの
+   キーボード開閉のたびにバーが初期位置からズレる原因だったため廃止した
+   （kura指定 2026-11-26: キーボードが出ていても初期位置から変えない）。
+   pinBar/pinTabs は、旧方式が付けたインラインスタイルを消すためだけに残す */
 function pinBar() {
-  const vv = window.visualViewport;
-  if (!vv) return;
-  const s = vv.scale || 1;
-  barEl.style.top = '0px';
-  barEl.style.bottom = 'auto';
-  barEl.style.width = (vv.width * s) + 'px';
-  const barH = barEl.offsetHeight;
-  const ty = vv.offsetTop + vv.height - barH / s;
-  barEl.style.transform = 'translate(' + vv.offsetLeft + 'px,' + ty + 'px) scale(' + (1 / s) + ')';
+  barEl.style.transform = '';
+  barEl.style.top = '';
+  barEl.style.bottom = '';
+  barEl.style.width = '';
 }
-/* タブバーも表示領域の上端に吸着させる（下部バーと同じ方式） */
 const tabEl = document.getElementById('tabbar');
 function pinTabs() {
-  const vv = window.visualViewport;
-  if (!vv) return;
-  const s = vv.scale || 1;
-  tabEl.style.width = (vv.width * s) + 'px';
-  tabEl.style.transform = 'translate(' + vv.offsetLeft + 'px,' + vv.offsetTop + 'px) scale(' + (1 / s) + ')';
+  tabEl.style.transform = '';
+  tabEl.style.width = '';
 }
 if (window.visualViewport) {
   visualViewport.addEventListener('resize', pinBar);
@@ -2606,38 +2602,6 @@ function repinSoon() {
   setTimeout(() => { pinBar(); pinTabs(); }, 60);
   setTimeout(() => { pinBar(); pinTabs(); }, 400);
 }
-/* 見張り: イベント頼みだと取りこぼすので、バーの実際の表示位置を実測し、
-   表示領域の端から2px以上ズレていたら位置を取り直す。それでも直らない時は
-   transformを一度外して描画し直す（kura報告 2026-11-26: イベント方式では直らなかった） */
-let barStuck = 0;
-function barsAligned() {
-  const vv = window.visualViewport;
-  if (!vv) return true;
-  const br = barEl.getBoundingClientRect();
-  const tr = tabEl.getBoundingClientRect();
-  return Math.abs(br.bottom - vv.height) <= 2 && Math.abs(tr.top) <= 2;
-}
-function hardRepin() {
-  /* iPadのフローティングキーボードを閉じた直後のバーのズレは、レイアウト値
-     （getBoundingClientRect）には現れない描画側のズレで、位置の取り直しでは直らない。
-     最小化やスリープで直るのは画面全体が再合成されるため。同じことをここで起こす:
-     バーを一度消して描き直し、ページの再描画も促す（kura報告 2026-11-26） */
-  window.scrollTo(0, 0);
-  barEl.style.display = 'none';
-  tabEl.style.display = 'none';
-  void barEl.offsetHeight;
-  barEl.style.display = '';
-  tabEl.style.display = '';
-  pinBar();
-  pinTabs();
-  if (typeof nudgeRepaint === 'function') nudgeRepaint();
-}
-setInterval(() => {
-  if (document.hidden || barsAligned()) { barStuck = 0; return; }
-  barStuck++;
-  if (barStuck >= 2) { hardRepin(); barStuck = 0; } else { pinBar(); pinTabs(); }
-}, 700);
-document.addEventListener('pointerdown', () => { if (!barsAligned()) { pinBar(); pinTabs(); } }, true);
 window.addEventListener('load', () => { pinBar(); pinTabs(); setTimeout(() => { pinBar(); pinTabs(); }, 300); });
 pinBar();
 pinTabs();
@@ -2940,8 +2904,7 @@ function closeTextEditor() {
   document.body.classList.remove('text-editing');
   document.querySelectorAll('.frame.editing').forEach(el => el.classList.remove('editing'));
   layoutFrameUi();
-  repinSoon();   /* キーボードが閉じた後の表示領域でバーの位置を取り直す */
-  setTimeout(hardRepin, 420);   /* キーボードが閉じ切った頃に描き直して、描画側のズレを消す */
+  repinSoon();
 }
 function applyTextEdit() {
   if (!textEdit) return;
@@ -2980,7 +2943,7 @@ function applyTextEdit() {
 }
 document.getElementById('textOk').addEventListener('click', applyTextEdit);
 document.getElementById('textCancel').addEventListener('click', closeTextEditor);
-textInputEl.addEventListener('blur', () => { repinSoon(); setTimeout(hardRepin, 450); });   /* キーボードだけ閉じた時もバーを取り直し、描き直す */
+
 /* 入力エリア四隅のハンドル: 入力中のその場で箱の大きさを変える。
    既存テキストは通常の拡縮と同じ計算（対角固定・ローカル座標）で配置を拡縮し、
    新規テキストはまだ配置が無いので、入力エリアの箱自体を拡縮して大きさを保持する */
