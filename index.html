@@ -203,12 +203,14 @@
   .edit-handle::after { content: ''; position: absolute; inset: -45%; border-radius: 50%; }
   /* 入力欄は点線の四角で囲い、中はテキスト本体と同じ半透明の黒（白文字が読めるように） */
   #textInput {
-    width: 100%; box-sizing: border-box; font-size: 16px; font-family: inherit; line-height: 1.4;
-    padding: 8px 10px; border-radius: 0; border: 1.5px dashed #6f8dff; outline: none; resize: none; overflow-wrap: anywhere;
+    width: 100%; box-sizing: border-box; font-size: 16px; font-family: inherit; line-height: 1.35;
+    /* 確定後の .text-body（padding 4px 6px・枠線なし）と文字の位置を一致させるため、
+       点線の枠（1.5px）の分を差し引いた padding にする（入力中と完了後で位置が変わらないように） */
+    padding: 2.5px 4.5px; border-radius: 0; border: 1.5px dashed #6f8dff; outline: none; resize: none; overflow-wrap: anywhere;
     background: rgba(0,0,0,.45); color: #fff;
   }
   html.canvas-light #textInput { background: rgba(0,0,0,.45); color: #fff; border-color: #656565; }
-  #textEditorBtns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+  #textEditorBtns { display: flex; justify-content: center; gap: 6px; margin-top: 6px; }
   /* 画像下のUI（ツールバー・拡縮ハンドル・トリミングの✓/✕）は、フレームの中ではなく
      画面固定レイヤー（#frameUi）に一組だけ置く。ズームに依らず常に同じ大きさになり、
      フレーム側の表示切替でiOSにUIの残像が二重に残る問題も起きない（2026-11-24） */
