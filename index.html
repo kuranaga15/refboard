@@ -186,7 +186,7 @@
   /* 入力中のドラッグでキャンバスがスクロールしないようにする（kura指定） */
   #textInput, #textEditorBtns, .edit-handle { touch-action: none; }
   /* テキスト編集中は、枠側の選択アウトラインを消して二重に見えないようにする */
-  .frame.editing { outline: none; }
+  .frame.editing { outline: none; visibility: hidden; }
   /* ハンドルは入力欄（点線の枠）と同じ箱に付け、その頂点と一致させる */
   #textInputWrap { position: relative; }
   /* 入力エリア自体の四隅ハンドル: キーボード表示中でも、この囲いを基準に拡縮できるようにする */
@@ -422,7 +422,7 @@ function allBoardsForSave() {
   return boardsMeta.map(m => ({ id: m.id, name: m.name, updatedAt: m.updatedAt || '',
     placements: m.id === activeBoardId ? placements : (otherBoards.get(m.id) || []) }));
 }
-const MAIN_MAX = 1600, THUMB_MAX = 320;
+const MAIN_MAX = 2400, THUMB_MAX = 512;
 const LAYOUT_ROW_H = 280, LAYOUT_GAP = 16;
 
 /* ---------- 状態 ---------- */
@@ -673,7 +673,9 @@ function placementByPid(pid) { return placements.find(p => p.pid === pid); }
 function itemOf(p) { return items.get(p.itemId); }
 
 function desiredKind(p) {
-  return (p.w * camera.scale < 480) ? 'thumb' : 'file';
+  // サムネイルは、その画素数で画面の実ピクセルをまかなえる時だけ使う（Retinaでの引き伸ばしぼやけ防止）
+  const need = p.w * camera.scale * (window.devicePixelRatio || 1);
+  return (need <= THUMB_MAX) ? 'thumb' : 'file';
 }
 async function refreshFrameImage(p, el) {
   const item = itemOf(p);
@@ -1609,8 +1611,8 @@ async function compressImage(file) {
         }, 'image/webp', quality);
       });
     }
-    const main = await render(MAIN_MAX, 0.82);
-    const thumb = await render(THUMB_MAX, 0.75);
+    const main = await render(MAIN_MAX, 0.88);
+    const thumb = await render(THUMB_MAX, 0.8);
     if (!main.blob || !thumb.blob) throw new Error('画像の変換に失敗しました');
     return { main, thumb, naturalW: nw, naturalH: nh, alpha };
   } finally { URL.revokeObjectURL(url); }
@@ -1940,14 +1942,14 @@ async function applyCrop(pid) {
           cv.toBlob(b2 => res(b2), 'image/jpeg', q);
         }, 'image/webp', q);
       });
-      const mainBlob = await toBlobQ(canvas, 0.82);
+      const mainBlob = await toBlobQ(canvas, 0.88);
       if (!mainBlob) throw new Error('crop failed');
       const ext = mainBlob.type === 'image/webp' ? 'webp' : (mainBlob.type === 'image/png' ? 'png' : 'jpg');
       const ts = Math.min(1, THUMB_MAX / Math.max(sw, sh));
       const tc = document.createElement('canvas');
       tc.width = Math.max(1, Math.round(sw * ts)); tc.height = Math.max(1, Math.round(sh * ts));
       tc.getContext('2d').drawImage(canvas, 0, 0, tc.width, tc.height);
-      const thumbBlob = await toBlobQ(tc, 0.75);
+      const thumbBlob = await toBlobQ(tc, 0.8);
       if (!thumbBlob) throw new Error('thumb failed');
       const hash = await sha256Hex(await mainBlob.arrayBuffer());
       const id = makeId();
@@ -2317,14 +2319,14 @@ async function applyFreeform(pid, pts, bbox) {
           cv.toBlob(b2 => res(b2), 'image/png');
         }, 'image/webp', q);
       });
-      const mainBlob = await toBlobQ(canvas, 0.82);
+      const mainBlob = await toBlobQ(canvas, 0.88);
       if (!mainBlob) throw new Error('freeform failed');
       const ext = mainBlob.type === 'image/png' ? 'png' : 'webp';
       const ts = Math.min(1, THUMB_MAX / Math.max(bwPx, bhPx));
       const tc = document.createElement('canvas');
       tc.width = Math.max(1, Math.round(bwPx * ts)); tc.height = Math.max(1, Math.round(bhPx * ts));
       tc.getContext('2d').drawImage(canvas, 0, 0, tc.width, tc.height);
-      const thumbBlob = await toBlobQ(tc, 0.75);
+      const thumbBlob = await toBlobQ(tc, 0.8);
       if (!thumbBlob) throw new Error('thumb failed');
       const hash = await sha256Hex(await mainBlob.arrayBuffer());
       const id = makeId();
