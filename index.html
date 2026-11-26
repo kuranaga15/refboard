@@ -2912,7 +2912,10 @@ function openTextEditor(pid, wx, wy) {
   textInputEl.style.fontSize = ((textEdit.fontWorld || 16) * camera.scale) + 'px';
   textInputEl.style.lineHeight = '1.35';
   layoutFrameUi();   /* 枠側のUIを消して、入力エリア側だけにする */
-  setTimeout(() => { textInputEl.focus(); }, 30);
+  /* キーボードを出すには、タップの処理の中で同期的にfocusする必要がある（タイマー越しだとiOSがキーボードを出してくれない） */
+  textInputEl.focus({ preventScroll: true });
+  const endPos = textInputEl.value.length;
+  try { textInputEl.setSelectionRange(endPos, endPos); } catch (e) {}
 }
 function closeTextEditor() {
   textEdit = null;
