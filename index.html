@@ -1327,6 +1327,19 @@ async function onDragEnd(e) {
   const p = placementByPid(ds.pid);
   dragState = null;
   commitDragHistory();
+  /* 選択中のテキストを軽くタップしただけなら、その場で編集を開く。
+     指のわずかなブレで座標が小数レベルに動くため、位置の完全一致ではなく
+     画面上の移動量（10px以内）でタップと判定する。
+     編集を開く処理は await より前に置く。iOSでキーボードを出すには、タップの
+     同期処理の中で focus する必要があるため（2026-11-26 kura報告） */
+  if (ds.mode === 'move' && ds.editTap && p &&
+      (Date.now() - ds.editTap.t) <= 500 &&
+      Math.hypot(e.clientX - ds.editTap.x, e.clientY - ds.editTap.y) <= 10) {
+    p.x = ds.origX; p.y = ds.origY;   /* ブレでずれた分は元に戻す */
+    const el2 = frameEls.get(p.pid);
+    if (el2) positionFrameEl(p, el2);
+    openTextEditor(p.pid);
+  }
   if (p) {
     p.u = Date.now();
     metaDirty = true;
@@ -1336,17 +1349,6 @@ async function onDragEnd(e) {
     if (el) refreshFrameImage(p, el);
   }
   nudgeRepaint();
-  /* 選択中のテキストを軽くタップしただけなら、その場で編集を開く。
-     指のわずかなブレで座標が小数レベルに動くため、位置の完全一致ではなく
-     画面上の移動量（10px以内）でタップと判定する */
-  if (ds.mode === 'move' && ds.editTap && p &&
-      (Date.now() - ds.editTap.t) <= 500 &&
-      Math.hypot(e.clientX - ds.editTap.x, e.clientY - ds.editTap.y) <= 10) {
-    p.x = ds.origX; p.y = ds.origY;   /* ブレでずれた分は元に戻す */
-    const el2 = frameEls.get(p.pid);
-    if (el2) positionFrameEl(p, el2);
-    openTextEditor(p.pid);
-  }
 }
 
 /* ---------- パン / ピンチ / ホイール ---------- */
@@ -1490,7 +1492,7 @@ function endViewportPointer(e) {
         if (tc.wasSel) openTextEditor(tc.pid);
         else selectPlacement(tc.pid);
       }
-      else openTextEditor(null, tc.wx, tc.wy);   /* 空き場所のタップで新規テキスト */
+      else openTextEditor(null, tc.wx, tc.wy, false);   /* 空き場所のタップで新規テキスト（キーボードは出さない） */
     }
   }
   if (rangeDrag && e.pointerId === rangeDrag.pointerId) {
@@ -2872,7 +2874,7 @@ function layoutTextEditor() {
   textInputEl.style.height = (maxY - minY) + 'px';
   if (textEdit.fontWorld) textInputEl.style.fontSize = (textEdit.fontWorld * camera.scale) + 'px';
 }
-function openTextEditor(pid, wx, wy) {
+function openTextEditor(pid, wx, wy, focusKeyboard = true) {
   const r = viewport.getBoundingClientRect();
   if (pid) {
     const p = placementByPid(pid);
@@ -2912,10 +2914,13 @@ function openTextEditor(pid, wx, wy) {
   textInputEl.style.fontSize = ((textEdit.fontWorld || 16) * camera.scale) + 'px';
   textInputEl.style.lineHeight = '1.35';
   layoutFrameUi();   /* 枠側のUIを消して、入力エリア側だけにする */
-  /* キーボードを出すには、タップの処理の中で同期的にfocusする必要がある（タイマー越しだとiOSがキーボードを出してくれない） */
-  textInputEl.focus({ preventScroll: true });
-  const endPos = textInputEl.value.length;
-  try { textInputEl.setSelectionRange(endPos, endPos); } catch (e) {}
+  /* キーボードを出すには、タップの処理の中で同期的にfocusする必要がある（タイマー越しだとiOSがキーボードを出してくれない）。
+     新規作成の時は出さない（箱の大きさを先に決めたいため。入力欄をタップすれば出る） */
+  if (focusKeyboard) {
+    textInputEl.focus({ preventScroll: true });
+    const endPos = textInputEl.value.length;
+    try { textInputEl.setSelectionRange(endPos, endPos); } catch (e) {}
+  }
 }
 function closeTextEditor() {
   textEdit = null;
