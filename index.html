@@ -422,7 +422,7 @@ function allBoardsForSave() {
   return boardsMeta.map(m => ({ id: m.id, name: m.name, updatedAt: m.updatedAt || '',
     placements: m.id === activeBoardId ? placements : (otherBoards.get(m.id) || []) }));
 }
-const MAIN_MAX = 2400, THUMB_MAX = 512;
+const MAIN_MAX = 1600, THUMB_MAX = 512;
 const LAYOUT_ROW_H = 280, LAYOUT_GAP = 16;
 
 /* ---------- 状態 ---------- */
@@ -1611,7 +1611,7 @@ async function compressImage(file) {
         }, 'image/webp', quality);
       });
     }
-    const main = await render(MAIN_MAX, 0.88);
+    const main = await render(MAIN_MAX, 0.82);
     const thumb = await render(THUMB_MAX, 0.8);
     if (!main.blob || !thumb.blob) throw new Error('画像の変換に失敗しました');
     return { main, thumb, naturalW: nw, naturalH: nh, alpha };
@@ -1942,7 +1942,7 @@ async function applyCrop(pid) {
           cv.toBlob(b2 => res(b2), 'image/jpeg', q);
         }, 'image/webp', q);
       });
-      const mainBlob = await toBlobQ(canvas, 0.88);
+      const mainBlob = await toBlobQ(canvas, 0.82);
       if (!mainBlob) throw new Error('crop failed');
       const ext = mainBlob.type === 'image/webp' ? 'webp' : (mainBlob.type === 'image/png' ? 'png' : 'jpg');
       const ts = Math.min(1, THUMB_MAX / Math.max(sw, sh));
@@ -2319,7 +2319,7 @@ async function applyFreeform(pid, pts, bbox) {
           cv.toBlob(b2 => res(b2), 'image/png');
         }, 'image/webp', q);
       });
-      const mainBlob = await toBlobQ(canvas, 0.88);
+      const mainBlob = await toBlobQ(canvas, 0.82);
       if (!mainBlob) throw new Error('freeform failed');
       const ext = mainBlob.type === 'image/png' ? 'png' : 'webp';
       const ts = Math.min(1, THUMB_MAX / Math.max(bwPx, bhPx));
