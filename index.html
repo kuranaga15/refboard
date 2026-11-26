@@ -1770,6 +1770,9 @@ function duplicatePlacement(pid) {
   placements.push(np);
   metaDirty = true;
   saveLocal(); renderAll(); scheduleSync();
+  /* 選択は複製した側へ移す（kura指定） */
+  clearMultiSel();
+  selectPlacement(np.pid);
 }
 async function deletePlacementFlow(pid, record = true) {
   const p = placementByPid(pid);
