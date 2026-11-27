@@ -149,6 +149,13 @@
     font-family: inherit;
   }
   .mitem:active { background: rgba(255,255,255,.1); }
+  /* 長押しペーストのメニュー（指の近くに出す小さなポップアップ） */
+  #ctxMenu {
+    position: absolute; z-index: 140; display: none; pointer-events: auto;
+    background: rgba(28,28,33,.97); border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
+    padding: 6px; box-shadow: 0 10px 30px rgba(0,0,0,.5);
+  }
+  #ctxMenu.open { display: block; }
   #viewport {
     position: fixed; left: 0; right: 0; bottom: 0; top: 0;
     overflow: hidden; touch-action: none; cursor: grab;
@@ -378,6 +385,7 @@
   </div>
   <div id="selRect"></div>
   <div id="multiUi"><div id="groupBox"></div><div class="group-handle" data-corner="nw"></div><div class="group-handle" data-corner="ne"></div><div class="group-handle" data-corner="sw"></div><div class="group-handle" data-corner="se"></div><div class="group-rotate" data-corner="nw"></div><div class="group-rotate" data-corner="ne"></div><div class="group-rotate" data-corner="sw"></div><div class="group-rotate" data-corner="se"></div><div class="tbtn del" id="groupDel" title="選択を削除"><span class="xgl">✕</span></div></div>
+  <div id="ctxMenu"><button class="mitem" id="ctxPaste">ペースト</button></div>
   <div id="hint">左下の ＋ から画像を取り込んでね<br>ドラッグで移動、ピンチで拡大縮小だよ</div>
 </div>
 <div id="detail">
@@ -1361,7 +1369,7 @@ let cropTapCandidate = null;   // トリミング範囲の外側へのタップ�
 let textMode = false;          // テキストモード中か（Tボタン）
 let textTapCandidate = null;   // テキストモード中のタップ候補（離したらその場に編集エリアを開く）
 viewport.addEventListener('pointerdown', (e) => {
-  if (e.target.closest('#frameUi, #multiUi')) return;   /* 画面固定UIの上はキャンバス操作にしない */
+  if (e.target.closest('#frameUi, #multiUi, #ctxMenu')) return;   /* 画面固定UIの上はキャンバス操作にしない */
   /* フリーフォーム中に自分の画像以外へ触れたら、無かったことにして終わる */
   if (freeState) {
     const fEl = e.target.closest('.frame');
@@ -1675,12 +1683,13 @@ function layoutBlock(sizes, anchor) {
   return out;
 }
 let importing = false;
-async function importFiles(files, anchor) {
+async function importFiles(files, anchor, opts = {}) {
   if (importing) { toast('取り込み中だよ…終わってからにしてね'); return; }
   const list = [...files].filter(f => f.type && f.type.startsWith('image/'));
   if (!list.length) return;
   importing = true;
   setStatus('取り込み中…');
+  let importResult = { added: 0, dup: 0, failed: 0 };
   try {
     const prepared = [];
     let dup = 0, failed = 0, importHistoryPushed = false;
@@ -1722,14 +1731,20 @@ async function importFiles(files, anchor) {
       metaDirty = true;
       await saveLocal();
       renderAll();
-      /* 取り込んだ画像は全部、投げ縄で選んだ時と同じ複数選択状態にする
-         （迷子防止と、すぐそのまま移動できるように。kura指定） */
-      selectPlacement(null);
-      if (!rangeMode) { rangeMode = true; rangeBtn.classList.add('on'); }
-      if (textMode) { textMode = false; textBtn.classList.remove('on'); }
-      multiSel = new Set(prepared.map(p => 'p-' + p.item.id));
-      refreshMultiClasses();
+      if (opts.single) {
+        /* ペースト経由は1枚だけ、単体選択にする（モードも切り替えない） */
+        selectPlacement('p-' + prepared[0].item.id);
+      } else {
+        /* 取り込んだ画像は全部、投げ縄で選んだ時と同じ複数選択状態にする
+           （迷子防止と、すぐそのまま移動できるように。kura指定） */
+        selectPlacement(null);
+        if (!rangeMode) { rangeMode = true; rangeBtn.classList.add('on'); }
+        if (textMode) { textMode = false; textBtn.classList.remove('on'); }
+        multiSel = new Set(prepared.map(p => 'p-' + p.item.id));
+        refreshMultiClasses();
+      }
     }
+    importResult = { added: prepared.length, dup, failed };
     /* 完了ポップアップは出さない（kura指定）。失敗と「取り込める画像なし」の時だけ知らせる */
     if (failed) toast(failed + '枚は取り込めなかったよ');
     else if (!prepared.length && !dup) toast('取り込める画像がなかったよ');
@@ -1738,6 +1753,7 @@ async function importFiles(files, anchor) {
     importing = false;
     updateStatusLine();
   }
+  return importResult;
 }
 document.getElementById('importBtn').addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
 fileInput.addEventListener('change', (e) => importFiles(e.target.files, null));
@@ -1752,6 +1768,124 @@ document.addEventListener('paste', (e) => {
   const files = [...(e.clipboardData ? e.clipboardData.files : [])];
   if (files.length) importFiles(files, null);
 });
+
+/* ---------- 長押しペースト（2026-11-27 kura依頼） ----------
+   キャンバスを1秒間その場で長押しすると、指の近くに「ペースト」のメニューを出す。
+   画像がコピーされていればその場所に配置し、テキストならテキスト配置として貼る */
+const ctxMenuEl = document.getElementById('ctxMenu');
+let lpTimer = null, lpPress = null, ctxTarget = null;   // ctxTarget: {wx, wy} 貼り付け先（ワールド座標）
+function cancelLongPress() {
+  if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+  lpPress = null;
+}
+function hideCtxMenu() { ctxMenuEl.classList.remove('open'); ctxTarget = null; }
+function showCtxMenu(clientX, clientY, wx, wy) {
+  const r = viewport.getBoundingClientRect();
+  const lx = clientX - r.left, ly = clientY - r.top;
+  ctxMenuEl.style.left = Math.max(8, Math.min(lx - 60, r.width - 150)) + 'px';
+  ctxMenuEl.style.top = (ly >= 84 ? ly - 64 : ly + 20) + 'px';
+  ctxTarget = { wx, wy };
+  ctxMenuEl.classList.add('open');
+}
+viewport.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('#frameUi, #multiUi, #ctxMenu')) return;
+  if (e.button !== undefined && e.button > 0) return;
+  if (lpPress) { cancelLongPress(); return; }   /* 2本目の指が触れたら長押しにしない */
+  if (cropState || freeState || textEdit) return;
+  const wpt = screenToWorld(e.clientX, e.clientY);
+  lpPress = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, wx: wpt.x, wy: wpt.y };
+  lpTimer = setTimeout(() => {
+    lpTimer = null;
+    if (!lpPress) return;
+    const lp = lpPress;
+    lpPress = null;
+    if (cropState || freeState || textEdit) return;
+    /* 進行中のジェスチャ（パン・タップ候補・ドラッグ等）は無かったことにする。
+       この後の pointerup で選択や編集が誤発しないように */
+    tapCandidate = null; textTapCandidate = null; cropTapCandidate = null;
+    if (rangeDrag) { rangeDrag = null; hideSelRect(); }
+    panState = null; pinchState = null;
+    if (dragState) {
+      const p = placementByPid(dragState.pid);
+      if (p && dragState.origX !== undefined) {
+        p.x = dragState.origX; p.y = dragState.origY;
+        const el = frameEls.get(p.pid);
+        if (el) positionFrameEl(p, el);
+      }
+      commitDragHistory();
+      dragState = null;
+    }
+    if (groupMove || groupDrag || groupRotate) { settleMultiDrag(); groupMove = null; groupDrag = null; groupRotate = null; }
+    showCtxMenu(lp.x, lp.y, lp.wx, lp.wy);
+  }, 1000);
+});
+viewport.addEventListener('pointermove', (e) => {
+  if (lpPress && e.pointerId === lpPress.pointerId &&
+      Math.hypot(e.clientX - lpPress.x, e.clientY - lpPress.y) > 10) cancelLongPress();
+});
+const lpEnd = (e) => { if (lpPress && e.pointerId === lpPress.pointerId) cancelLongPress(); };
+viewport.addEventListener('pointerup', lpEnd);
+viewport.addEventListener('pointercancel', lpEnd);
+document.addEventListener('pointerdown', (e) => {
+  if (ctxMenuEl.classList.contains('open') && !e.target.closest('#ctxMenu')) hideCtxMenu();
+}, true);
+document.getElementById('ctxPaste').addEventListener('click', () => {
+  const t = ctxTarget;
+  hideCtxMenu();
+  if (t) pasteFromClipboard(t.wx, t.wy);
+});
+function placePastedText(text, wx, wy) {
+  pushHistory();
+  const fontWorld = 16 / camera.scale;
+  const bw = Math.max(240, Math.ceil(180 / camera.scale));
+  /* 貼るテキストが収まる高さを、確定後の表示と同じ物差し（fitMirror）で測る */
+  fitMirror.style.width = bw + 'px';
+  fitMirror.style.height = '';
+  fitMirror.style.fontSize = fontWorld + 'px';
+  fitMirror.style.fontFamily = getComputedStyle(textInputEl).fontFamily;
+  fitMirror.textContent = text;
+  const bh = Math.max(40, Math.ceil(fitMirror.scrollHeight) + 2);
+  const it = { id: 't-' + makeId(), kind: 'text', text, w: bw, h: bh, fontSize: fontWorld };
+  items.set(it.id, it);
+  const np = { pid: 'p-' + makeId(), itemId: it.id, x: wx, y: wy, w: bw, h: bh, angle: 0, z: ++zCounter, u: Date.now() };
+  placements.push(np);
+  metaDirty = true;
+  renderAll();
+  selectPlacement(np.pid);
+  saveLocal();
+  scheduleSync();
+}
+async function pasteFromClipboard(wx, wy) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.read) {
+      const clipItems = await navigator.clipboard.read();
+      for (const ci of clipItems) {
+        const imgType = ci.types.find(t => t.startsWith('image/'));
+        if (imgType) {
+          const blob = await ci.getType(imgType);
+          const ext = (imgType.split('/')[1] || 'png').replace('jpeg', 'jpg');
+          const file = new File([blob], 'paste.' + ext, { type: imgType });
+          const res = await importFiles([file], { x: wx, y: wy }, { single: true });
+          if (res && !res.added && res.dup) toast('同じ画像がもうボードにあるよ');
+          else if (res && !res.added) toast('画像を取り込めなかったよ');
+          return;
+        }
+      }
+      for (const ci of clipItems) {
+        if (ci.types.includes('text/plain')) {
+          const blob = await ci.getType('text/plain');
+          const text = (await blob.text()).trim();
+          if (text) { placePastedText(text, wx, wy); return; }
+        }
+      }
+    }
+  } catch (e) { /* 読めなかった時は、テキスト読みだけでも試す */ }
+  try {
+    const text = (await navigator.clipboard.readText()).trim();
+    if (text) { placePastedText(text, wx, wy); return; }
+  } catch (e) {}
+  toast('クリップボードに貼れるものがなかったよ');
+}
 
 /* ================= 配置の操作 ================= */
 function duplicatePlacement(pid) {
