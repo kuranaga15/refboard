@@ -188,6 +188,19 @@
   }
   /* テキスト選択中はトリミング系のボタンを出さない */
   #selToolbar.textsel .act-crop, #selToolbar.textsel .act-free, #selToolbar.textsel .act-flip { display: none; }
+  /* 文字サイズのシークバー（テキスト選択中だけ、複製の左に出る） */
+  .act-size {
+    display: none; width: 108px; height: 27px; border-radius: 999px; box-sizing: border-box;
+    background: rgba(25,25,30,.92); border: 1px solid rgba(255,255,255,.25);
+    align-items: center; padding: 0 10px; touch-action: none; cursor: ew-resize;
+  }
+  #selToolbar.textsel .act-size { display: flex; }
+  .size-track { position: relative; flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,.35); }
+  .size-track::before { content: ''; position: absolute; left: 50%; top: -3px; width: 1px; height: 10px; background: rgba(255,255,255,.5); }
+  .size-knob {
+    position: absolute; top: 50%; left: 50%; width: 15px; height: 15px; border-radius: 50%;
+    background: #fff; transform: translate(-50%, -50%); box-shadow: 0 1px 4px rgba(0,0,0,.45); pointer-events: none;
+  }
   #textBtn { font-size: 16px; font-weight: 300; }
   /* その場編集エディタ（タップした場所・テキストの枠に重ねて出す）。
      コンテナ自体はタップを透過させ、枠の四隅のハンドルを入力中も掴めるようにする */
@@ -357,6 +370,7 @@
   <div id="world"></div>
   <div id="frameUi">
     <div id="selToolbar">
+      <div class="act-size" title="文字サイズ"><div class="size-track"><div class="size-knob"></div></div></div>
       <div class="tbtn act-dup" title="複製"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></div>
       <div class="tbtn act-flip" title="左右反転"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 6.4c1.2-2.5 3.5-3.9 6.2-3.9 2 0 3.9.8 5.1 2.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19.4 1.7l.4 4.1-3.9-1.3z"/><rect x="11.3" y="7.6" width="1.4" height="13.2" rx="0.7"/><path d="M3 9.6v9.4l7.1-4.7z"/><path d="M21 9.6v9.4l-7.1-4.7z"/></svg></div>
       <div class="tbtn act-crop" title="トリミング"><img class="ticon" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAYAAAA5ZDbSAAAEnklEQVR4nO3dUUvrSBjG8Xlnkta2Vjhi5eCFIsIiC3u14oWXfgk/pJd+Cr3Y2xUWEVkKu624rNG2ySQze3F2lnK2OLVNpunb5wflgM1ppv2bpCZtIgQAAAAAAAAAlIKIhBBCdLtd6vf7v2itx2maJlmWvU/fJpPJ31mWvV9cXHSFEEIptdJxcxKFmAkRiWazuR1F0das+621hoikUkqGGM8mCfaCWmvtv/+aGfeZ6WmgPFhimENg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZs57NEnKxX8HiEhYa+d+DCIiKaWQUgruxx2M+d8xl0p4A5cxkPF4bGcdRfpemqa5MSbYk18l98tfNW/g4+PjhY8ZExFZa+329naklIp90x8dHX0ZDAZpFEVUFAXLRZiIKM9z2+/386Ioqp+fb4I0TZNlZuAO5sdx3CaiD9fVWuuRMSb3Tbeu3Gvx/Pz82+np6c9Jktiql2Tv0tloNLYrm/t34jhuh5rXKm1tbe24jzNVzRt4nm3nPOZZKsuaV125JbgoCh1qnt7AIVeXXFfN04hIhnye7F/QTYfAzGEbXIE6bWqwDWbOG/jt7e3PZWdCRNRut/d8Acfj8UvId5hVUErFrVZrd9XjcLyBT05ODhZ9cPdHfLfbVXd3d7/u7u6euD8VpqczxuRSyujq6urH29vboVJKhNjLUyY35vPz897Nzc0f7jmtelzeAQwGg6W3i0mSGGOMt9hwOHwvY36rNBwO31c9hmnzbIMXfnC3BDcajbkeJI5jRURinZfgOI5r9T5innfRS83AWjv3Y9hvPvV/6qKu467VbxuUD4GZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQRmDoGZQ2DmEJg5BGYOgZlDYOZWfrrbafSNcLd18tlxl/U8fefGrFVgrXVhrRV5nq96KJ/mxqy1nut0yFmW2RAnL61V4F6v19nf3x+t8+mEe71exzetlFIdHBzESZIUy175zHd+7UrXg27wOzs79PDwcL+3t/fDrDO+O5tySn9rrRmNRs+2hMW32+1+/ej+Wi3BdbrWQZWISHY6nf0Q86pV4E26rE6o51qrwJt0WZ1Qz3VjXtBNhcDMBVtFW2uNu4Wa56ps5DZYKRWHvrRqnYV6HYIEttaKyWTyugmXcJdSRr4rmVtrjdZ6FGJMQXb4EpE4PDyMoigiY0y9LixUEqUU5Xluz87Ovl5fX/8+69J2bifPy8vLw+Xl5U+vr6+aiGiZHR6Pj48f7tcNtgQ/PT2t3w7mBfR6vb980xRFoe/v78dpmlY+nmDbYClZrpX/4/ZFN5tN5ZuWiGSr1SKttV12X7QxH79XCxbYN5B1R0TCGDN3LGOMMMaIZQP78F6sAIG5Q2DmEJg5BGYOgZlDYOYQmDkEZg6BmUNg5hCYOQQumfuu0awPNbifUcAvXtXqY7Mc5Hlusix7c5/umL7P/SxN07eqv5MEAAAAAAAAsIn+AcVgA0hIUB5uAAAAAElFTkSuQmCC" alt="トリミング"></div>
@@ -1296,6 +1310,61 @@ rotateZones.forEach(z => {
 });
 selToolbar.querySelector('.act-dup').addEventListener('click', () => { const sp = singleUiPid(); if (sp) duplicatePlacement(sp); });
 selToolbar.querySelector('.act-flip').addEventListener('click', () => { const sp = singleUiPid(); if (sp) flipPlacement(sp); });
+/* 文字サイズのシークバー（2026-11-28 kura依頼）: 真ん中が今のサイズ（×1）、
+   左端で×0、右端で×50。文字だけでなく箱も同じ倍率で拡縮し、改行位置を変えない */
+const sizeBarEl = selToolbar.querySelector('.act-size');
+const sizeTrackEl = selToolbar.querySelector('.size-track');
+const sizeKnobEl = selToolbar.querySelector('.size-knob');
+let sizeDrag = null;
+sizeBarEl.addEventListener('pointerdown', (e) => {
+  const sp = singleUiPid();
+  if (!sp) return;
+  const p = placementByPid(sp);
+  const it = p ? itemOf(p) : null;
+  if (!p || !it || it.kind !== 'text') return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (!it.fontSize) it.fontSize = fittedFontWorld(p.w, p.h, it.text || '');   /* 旧テキストは今の見た目を測って固定 */
+  const tr = sizeTrackEl.getBoundingClientRect();
+  beginDragHistory([p]);
+  sizeDrag = {
+    pointerId: e.pointerId, pid: sp,
+    cx: tr.left + tr.width / 2, half: Math.max(1, tr.width / 2),
+    baseFont: it.fontSize, baseW: p.w, baseH: p.h
+  };
+  sizeBarEl.setPointerCapture(e.pointerId);
+  applySizeDrag(e.clientX);
+});
+sizeBarEl.addEventListener('pointermove', (e) => {
+  if (sizeDrag && e.pointerId === sizeDrag.pointerId) applySizeDrag(e.clientX);
+});
+const endSizeDrag = (e) => {
+  if (!sizeDrag || e.pointerId !== sizeDrag.pointerId) return;
+  const pid = sizeDrag.pid;
+  sizeDrag = null;
+  sizeKnobEl.style.left = '50%';
+  commitDragHistory();
+  const p = placementByPid(pid);
+  if (p) { p.u = Date.now(); metaDirty = true; saveLocal(); scheduleSync(); }
+};
+sizeBarEl.addEventListener('pointerup', endSizeDrag);
+sizeBarEl.addEventListener('pointercancel', endSizeDrag);
+function applySizeDrag(clientX) {
+  if (!sizeDrag) return;
+  const p = placementByPid(sizeDrag.pid);
+  const it = p ? itemOf(p) : null;
+  if (!p || !it) return;
+  let t = (clientX - sizeDrag.cx) / sizeDrag.half;   /* -1〜+1 */
+  t = Math.max(-1, Math.min(1, t));
+  const f = t < 0 ? 1 + t : 1 + 49 * t;               /* 左端×0、真ん中×1、右端×50 */
+  sizeKnobEl.style.left = ((t + 1) / 2 * 100) + '%';
+  const fv = Math.max(f, 0.02);                        /* ×0だと消えて選べなくなるため、ごく小さい下限を残す */
+  it.fontSize = sizeDrag.baseFont * fv;
+  p.w = Math.max(4, sizeDrag.baseW * fv);
+  p.h = Math.max(4, sizeDrag.baseH * fv);
+  const el = frameEls.get(p.pid);
+  if (el) { el.dataset.fitKey = ''; refreshFrameImage(p, el); positionFrameEl(p, el); }
+}
 selToolbar.querySelector('.act-crop').addEventListener('click', () => { const sp = singleUiPid(); if (sp) startCrop(sp); });
 selToolbar.querySelector('.act-free').addEventListener('click', () => { const sp = singleUiPid(); if (sp) startFreeform(sp); });
 selToolbar.querySelector('.act-del').addEventListener('click', () => { const sp = singleUiPid(); if (sp) deletePlacementFlow(sp); });
