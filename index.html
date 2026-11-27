@@ -113,6 +113,10 @@
   }
   /* タブは上が角丸・下が四角のプリン状。アクティブタブはタブバーの下端まで届いて見出しのように見える（kura指定） */
   .btab.on { background: #6f6f76; color: #fff; border: 1px solid transparent; }
+  /* タブの長押しドラッグ並び替え用 */
+  .btab { touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  .btab.dragging { position: relative; z-index: 5; transform-origin: 50% 100%; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+  .btab.dropnear { filter: brightness(1.4); }
   /* 範囲選択ボタンと複数選択まわり */
   #rangeBtn svg { width: 19px; height: 19px; display: block; pointer-events: none; }
   .bbtn.on { background: #54545e; border-color: #e8e8ec; }
@@ -2896,7 +2900,7 @@ function renderTabs() {
     const b = document.createElement('button');
     b.className = 'btab' + (m.id === activeBoardId ? ' on' : '');
     b.textContent = m.name;
-    b.addEventListener('click', () => switchBoard(m.id));
+    b.addEventListener('click', () => { if (Date.now() < suppressTabClickUntil) return; switchBoard(m.id); });
     tabEl.appendChild(b);
   }
 }
@@ -2916,6 +2920,90 @@ function switchBoard(id) {
   renderTabs();
   saveLocal();
 }
+/* ---------- タブの長押しドラッグ並び替え（2026-11-27 kura依頼） ----------
+   0.5秒長押しで掴み、横方向だけ動かせる。挙動は入れ替えではなく割り込み
+   （離した場所に割り込む）。掴んでいる間はタブが20%大きくなり、
+   割り込み先の両隣のタブが少し明るくなる */
+let tabDrag = null;
+let suppressTabClickUntil = 0;
+function updateTabInsert(press, clientX) {
+  const others = press.centers.filter((_, i) => i !== press.fromIndex);
+  let ins = 0;
+  while (ins < others.length && others[ins] < clientX) ins++;
+  press.insertIndex = ins;
+  const tabs = [...tabEl.querySelectorAll('.btab')];
+  tabs.forEach((t, i) => {
+    if (t === press.el) { t.classList.remove('dropnear'); return; }
+    const oi = i < press.fromIndex ? i : i - 1;   /* 掴んでいるタブを除いた並びでの位置 */
+    t.classList.toggle('dropnear', oi === ins - 1 || oi === ins);
+  });
+}
+tabEl.addEventListener('pointerdown', (e) => {
+  if (tabDrag || boardsMeta.length < 2) return;
+  const tab = e.target.closest('.btab');
+  if (!tab) return;
+  const tabs = [...tabEl.querySelectorAll('.btab')];
+  const idx = tabs.indexOf(tab);
+  if (idx < 0) return;
+  const barRect = tabEl.getBoundingClientRect();
+  const rect = tab.getBoundingClientRect();
+  const press = {
+    pointerId: e.pointerId, el: tab, fromIndex: idx, insertIndex: idx,
+    startX: e.clientX, active: false, rect,
+    centers: tabs.map(t => { const r = t.getBoundingClientRect(); return r.left + r.width / 2; }),
+    dxMin: barRect.left + 2 - rect.left,
+    dxMax: barRect.right - 2 - rect.width - rect.left,
+    timer: null
+  };
+  const cleanup = () => {
+    clearTimeout(press.timer);
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', finish);
+    window.removeEventListener('pointercancel', finish);
+    if (tabDrag === press) tabDrag = null;
+  };
+  const move = (ev) => {
+    if (!tabDrag || ev.pointerId !== press.pointerId) return;
+    const dxRaw = ev.clientX - press.startX;
+    if (!press.active) {
+      if (Math.abs(dxRaw) > 10) cleanup();   /* 長押し前に動いたら掴まない */
+      return;
+    }
+    const dx = Math.max(press.dxMin, Math.min(press.dxMax, dxRaw));
+    press.el.style.transform = 'translateX(' + dx + 'px) scale(1.2)';
+    updateTabInsert(press, ev.clientX);
+  };
+  const finish = (ev) => {
+    if (!tabDrag || ev.pointerId !== press.pointerId) return;
+    const wasActive = press.active;
+    const from = press.fromIndex, to = press.insertIndex;
+    cleanup();
+    if (!wasActive) return;
+    suppressTabClickUntil = Date.now() + 400;   /* ドラッグ直後のclickでボードが切り替わらないように */
+    press.el.classList.remove('dragging');
+    press.el.style.transform = '';
+    tabEl.querySelectorAll('.btab').forEach(t => t.classList.remove('dropnear'));
+    if (to !== from) {
+      const movedMeta = boardsMeta.splice(from, 1)[0];
+      boardsMeta.splice(to, 0, movedMeta);
+      metaDirty = true;
+      saveLocal();
+      scheduleSync();
+    }
+    renderTabs();
+  };
+  press.timer = setTimeout(() => {
+    if (tabDrag !== press) return;
+    press.active = true;
+    tab.classList.add('dragging');
+    press.el.style.transform = 'translateX(0px) scale(1.2)';
+    updateTabInsert(press, press.startX);
+  }, 500);
+  tabDrag = press;
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', finish);
+  window.addEventListener('pointercancel', finish);
+});
 const menuBoardDelete = document.getElementById('menuBoardDelete');
 let boardDeleteArmed = false, boardDeleteTimer = null;
 function disarmBoardDelete() {
