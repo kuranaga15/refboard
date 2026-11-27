@@ -285,6 +285,7 @@
   .tbtn svg { width: 16px; height: 16px; display: block; pointer-events: none; }
   /* 見た目の重心に合わせた位置の微調整（kuraの実機目視による指定値） */
   .act-dup svg { transform: translate(1px, 1px); }
+  .act-flip svg { transform: translate(-1px, 0) scale(1.1); }
   .tbtn .xgl { display: block; transform: translate(0px, -2px); }
   #hint {
     position: absolute; left: 50%; top: 46%; transform: translate(-50%,-50%);
@@ -1789,11 +1790,10 @@ function showCtxMenu(clientX, clientY, wx, wy) {
   const r = viewport.getBoundingClientRect();
   const lx = clientX - r.left, ly = clientY - r.top;
   const menuH = 158;   /* 3項目ぶんの高さの目安 */
-  /* 長押しした場所の右下に出す（一般的な作法。右や下に収まらない時は内側へ寄せる） */
-  ctxMenuEl.style.left = Math.max(8, Math.min(lx + 14, r.width - 196)) + 'px';
-  let top = ly + 14;
-  if (top > r.height - menuH - 8) top = ly - menuH - 14;
-  ctxMenuEl.style.top = Math.max(8, top) + 'px';
+  /* 出す位置は「タップの真ん中」と「右下にずらす」の中間くらい（kura指定）。
+     メニュー幅は約190pxなので、真ん中合わせは左上＝(lx-95, ly-79)、右下は(lx+14, ly+14)、その中点が(lx-40, ly-33) */
+  ctxMenuEl.style.left = Math.max(8, Math.min(lx - 40, r.width - 196)) + 'px';
+  ctxMenuEl.style.top = Math.max(8, Math.min(ly - 33, r.height - menuH - 8)) + 'px';
   ctxTarget = { wx, wy };
   ctxMenuEl.classList.add('open');
 }
