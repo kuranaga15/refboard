@@ -151,7 +151,7 @@
   .mitem:active { background: rgba(255,255,255,.1); }
   /* 長押しペーストのメニュー（指の近くに出す小さなポップアップ） */
   #ctxMenu {
-    position: absolute; z-index: 140; display: none; pointer-events: auto;
+    position: absolute; z-index: 140; display: none; pointer-events: auto; min-width: 176px;
     background: rgba(28,28,33,.97); border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
     padding: 6px; box-shadow: 0 10px 30px rgba(0,0,0,.5);
   }
@@ -385,7 +385,7 @@
   </div>
   <div id="selRect"></div>
   <div id="multiUi"><div id="groupBox"></div><div class="group-handle" data-corner="nw"></div><div class="group-handle" data-corner="ne"></div><div class="group-handle" data-corner="sw"></div><div class="group-handle" data-corner="se"></div><div class="group-rotate" data-corner="nw"></div><div class="group-rotate" data-corner="ne"></div><div class="group-rotate" data-corner="sw"></div><div class="group-rotate" data-corner="se"></div><div class="tbtn del" id="groupDel" title="選択を削除"><span class="xgl">✕</span></div></div>
-  <div id="ctxMenu"><button class="mitem" id="ctxPaste">ペースト</button></div>
+  <div id="ctxMenu"><button class="mitem" id="ctxPaste">ペースト</button><button class="mitem" id="ctxAddText">テキストを追加</button><button class="mitem" id="ctxImport">画像を取り込む</button></div>
   <div id="hint">左下の ＋ から画像を取り込んでね<br>ドラッグで移動、ピンチで拡大縮小だよ</div>
 </div>
 <div id="detail">
@@ -1755,8 +1755,12 @@ async function importFiles(files, anchor, opts = {}) {
   }
   return importResult;
 }
-document.getElementById('importBtn').addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
-fileInput.addEventListener('change', (e) => importFiles(e.target.files, null));
+document.getElementById('importBtn').addEventListener('click', () => { pendingImportAnchor = null; fileInput.value = ''; fileInput.click(); });
+fileInput.addEventListener('change', (e) => {
+  const anchor = pendingImportAnchor;
+  pendingImportAnchor = null;
+  importFiles(e.target.files, anchor);
+});
 viewport.addEventListener('dragover', (e) => { e.preventDefault(); });
 viewport.addEventListener('drop', (e) => {
   e.preventDefault();
@@ -1782,8 +1786,10 @@ function hideCtxMenu() { ctxMenuEl.classList.remove('open'); ctxTarget = null; }
 function showCtxMenu(clientX, clientY, wx, wy) {
   const r = viewport.getBoundingClientRect();
   const lx = clientX - r.left, ly = clientY - r.top;
-  ctxMenuEl.style.left = Math.max(8, Math.min(lx - 60, r.width - 150)) + 'px';
-  ctxMenuEl.style.top = (ly >= 84 ? ly - 64 : ly + 20) + 'px';
+  const menuH = 158;   /* 3項目ぶんの高さの目安 */
+  ctxMenuEl.style.left = Math.max(8, Math.min(lx - 60, r.width - 196)) + 'px';
+  let top = ly >= menuH + 24 ? ly - menuH - 12 : ly + 20;
+  ctxMenuEl.style.top = Math.max(8, Math.min(top, r.height - menuH - 8)) + 'px';
   ctxTarget = { wx, wy };
   ctxMenuEl.classList.add('open');
 }
@@ -1833,6 +1839,19 @@ document.getElementById('ctxPaste').addEventListener('click', () => {
   const t = ctxTarget;
   hideCtxMenu();
   if (t) pasteFromClipboard(t.wx, t.wy);
+});
+document.getElementById('ctxAddText').addEventListener('click', () => {
+  const t = ctxTarget;
+  hideCtxMenu();
+  if (t) openTextEditor(null, t.wx, t.wy, false);   /* その場で新規テキストの入力エリアを開く */
+});
+let pendingImportAnchor = null;   /* 長押しメニューから取り込む時だけ、押した場所を起点にする */
+document.getElementById('ctxImport').addEventListener('click', () => {
+  const t = ctxTarget;
+  hideCtxMenu();
+  pendingImportAnchor = t ? { x: t.wx, y: t.wy } : null;
+  fileInput.value = '';
+  fileInput.click();
 });
 function placePastedText(text, wx, wy) {
   pushHistory();
