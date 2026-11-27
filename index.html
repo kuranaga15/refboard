@@ -1311,7 +1311,7 @@ rotateZones.forEach(z => {
 selToolbar.querySelector('.act-dup').addEventListener('click', () => { const sp = singleUiPid(); if (sp) duplicatePlacement(sp); });
 selToolbar.querySelector('.act-flip').addEventListener('click', () => { const sp = singleUiPid(); if (sp) flipPlacement(sp); });
 /* 文字サイズのシークバー（2026-11-28 kura依頼）: 真ん中が今のサイズ（×1）、
-   左端で×0、右端で×50。文字だけでなく箱も同じ倍率で拡縮し、改行位置を変えない */
+   左端で×0、右端で×4。文字だけでなく箱も同じ倍率で拡縮し、改行位置を変えない */
 const sizeBarEl = selToolbar.querySelector('.act-size');
 const sizeTrackEl = selToolbar.querySelector('.size-track');
 const sizeKnobEl = selToolbar.querySelector('.size-knob');
@@ -1356,7 +1356,7 @@ function applySizeDrag(clientX) {
   if (!p || !it) return;
   let t = (clientX - sizeDrag.cx) / sizeDrag.half;   /* -1〜+1 */
   t = Math.max(-1, Math.min(1, t));
-  const f = t < 0 ? 1 + t : 1 + 49 * t;               /* 左端×0、真ん中×1、右端×50 */
+  const f = t < 0 ? 1 + t : 1 + 3 * t;                /* 左端×0、真ん中×1、右端×4 */
   sizeKnobEl.style.left = ((t + 1) / 2 * 100) + '%';
   const fv = Math.max(f, 0.02);                        /* ×0だと消えて選べなくなるため、ごく小さい下限を残す */
   it.fontSize = sizeDrag.baseFont * fv;
